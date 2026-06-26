@@ -226,6 +226,15 @@ conda activate yolo
 pip install -e ".[dev]"
 ```
 
+最短启动方式：
+
+```bash
+./backend.sh
+./frontend.sh
+```
+
+其中 `backend.sh` 会生成/刷新手工样本并跑 rule-only、Multi-Agent + Tools 两组输出；`frontend.sh` 会启动只读 Streamlit 工作台。
+
 生成 6 个 canonical demo：
 
 ```bash
