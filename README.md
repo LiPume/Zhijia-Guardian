@@ -17,6 +17,7 @@
 - Rule-only baseline 和评估入口。
 - Multi-Agent + Tools 纯规则诊断链路，包含 metric、scene、perception、planning、control、root cause、report agent。
 - `run_id` 级实验输出目录，包含 `run_report.md`、`figures/`、`tables/`、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
+- failure sample package，包含 `failure_samples.jsonl`、`tables/failure_samples.csv` 和 `failure_samples/{scenario_id}/failure_sample.json`。
 - Streamlit 只读工作台，直接读取输出包展示指标、错误样本、BEV、timeline、agent trace 和报告。
 - pytest 覆盖 schema、真实 adapter、demo eval、manual generator 和无标签泄漏。
 
@@ -24,7 +25,6 @@
 
 - LangGraph 依赖化编排；当前先使用轻量 `diagnosis_graph.py` 保持无额外依赖。
 - Single-LLM baseline。
-- failure sample package。
 - CARLA / SafeBench 全链路仿真接入。
 
 ## 项目边界
@@ -120,9 +120,11 @@ diagnoses/            # 每个场景的结构化诊断结果
 reports/              # 每个场景的 Markdown 报告，内嵌图链接
 figures/              # BEV、timeline、confusion matrix SVG
 tables/               # errors.csv、leaderboard.csv
+failure_samples/      # 每个故障/错误场景的 failure_sample.json
 run_report.md         # 一次实验的总览报告
 artifacts_manifest.json
 eval.csv              # 场景级评估结果
+failure_samples.jsonl # 可回流的失败样本总表
 summary.json          # 汇总指标
 confusion_matrix.json # 混淆矩阵
 run_meta.json         # run_id、method、dataset、seed、git_commit 等复现信息
@@ -367,14 +369,13 @@ DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 A
 - 固化 Multi-Agent + Tools 的错误分析和阈值配置。
 - 完善 `diagnosis.json`、`report.md` 和 claim/evidence 反查。
 - 做固定 seed 的 100+ noisy manual test split。
-- 打磨 Streamlit 工作台的筛选、错误样本复盘和输出包浏览。
+- 打磨 Streamlit 工作台的筛选、错误样本复盘、failure sample 浏览和输出包浏览。
 
 中期增强：
 
 - Single-LLM baseline，用于对比 hallucination 和 evidence coverage。
 - nuScenes / nuPlan 从 1 个 smoke sample 扩到 5 个样本。
 - CARLA 离线日志生成与故障注入。
-- failure sample package。
 
 暂缓：
 

@@ -506,27 +506,29 @@ parse_scenario
 
 ## 12. P3：失败样本包
 
-- [ ] 实现 `src/agents/failure_sample_builder.py` 或对应工具函数。
-- [ ] 输出 `failure_sample.json`。
+- [x] 实现 `src/zhijia_guardian/experiments/failure_sample_builder.py` 对应工具函数。
+- [x] 输出 `failure_samples/{scenario_id}/failure_sample.json`。
+- [x] 输出 `failure_samples.jsonl`。
+- [x] 输出 `tables/failure_samples.csv`。
 
 字段：
 
-- [ ] `scenario_id`
-- [ ] `predicted_fault_type`
-- [ ] `predicted_root_module`
-- [ ] `predicted_fault_start_time`
-- [ ] `evidence`
-- [ ] `wrong_reasoning`
-- [ ] `correct_reasoning`
-- [ ] `tags`
-- [ ] `recommended_data`
-- [ ] `regression_test_config`
-- [ ] `scenario_record_hash`
+- [x] `scenario_id`
+- [x] `predicted_fault_type`
+- [x] `predicted_root_module`
+- [x] `predicted_fault_start_time`
+- [x] `evidence`
+- [x] `wrong_reasoning`
+- [x] `correct_reasoning`
+- [x] `tags`
+- [x] `recommended_data`
+- [x] `regression_test_config`
+- [x] `scenario_record_hash`
 
 验收标准：
 
-- [ ] 每个故障场景都能生成可回流样本。
-- [ ] 可用于后续 SFT/DPO/RLHF，不实际训练。
+- [x] 每个故障场景都能生成可回流样本。
+- [x] 可用于后续 SFT/DPO/RLHF，不实际训练。
 
 ## 13. P4：nuScenes / nuPlan 小样本真实数据接入
 
@@ -616,7 +618,7 @@ parse_scenario
 - [x] `run_report.md` 和 `errors.csv` 输出包。
 - [x] Streamlit 工作台。
 - [x] 自动诊断报告。
-- [ ] failure sample package。
+- [x] failure sample package。
 - [x] 数据格式文档。
 - [ ] 软著/答辩可用说明材料。
 
@@ -624,7 +626,7 @@ parse_scenario
 
 当满足以下条件时，MVP 才算完成：
 
-- [ ] 在 `yolo` 环境下，一条命令能跑完整评估。
+- [x] 在 `yolo` 环境下，一条命令能跑完整评估。
 - [x] 三个 demo 在 Streamlit 中可展示。
 - [x] 诊断报告中的每个结论都有 evidence。
 - [ ] Rule-only、Single-LLM、Multi-Agent + Tools 三组结果能对比。

@@ -6,11 +6,16 @@ import subprocess
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from zhijia_guardian.adapters import ManualAdapter
 from zhijia_guardian.agents.report_agent import render_markdown_report
 from zhijia_guardian.baselines import diagnose_rule_only
 from zhijia_guardian.experiments.eval_metrics import EvalRow, confusion_matrix, evaluate_one, summarize
+from zhijia_guardian.experiments.failure_sample_builder import (
+    build_failure_sample,
+    write_failure_sample_package,
+)
 from zhijia_guardian.experiments.output_artifacts import write_run_artifacts, write_scenario_artifacts
 from zhijia_guardian.graph import run_diagnosis_graph
 from zhijia_guardian.schemas.diagnosis import DiagnosisRecord
@@ -57,6 +62,7 @@ def run_eval(
         path.mkdir(parents=True, exist_ok=True)
 
     rows: list[EvalRow] = []
+    failure_samples: list[dict[str, Any]] = []
     for scenario_id in adapter.list_scenarios():
         record = adapter.load_scenario(scenario_id)
         metrics, diagnosis = _diagnose(record, method)
@@ -64,7 +70,11 @@ def run_eval(
         _dump_model(diagnosis, diagnoses_dir / f"{scenario_id}.json")
         figure_paths = write_scenario_artifacts(record, diagnosis, run_dir)
         _write_report(diagnosis, reports_dir / f"{scenario_id}.md", figure_paths)
-        rows.append(evaluate_one(record, diagnosis))
+        row = evaluate_one(record, diagnosis)
+        rows.append(row)
+        failure_sample = build_failure_sample(record, diagnosis, row, method=method)
+        if failure_sample is not None:
+            failure_samples.append(failure_sample)
 
     summary = summarize(rows)
     confusion = confusion_matrix(rows)
@@ -82,7 +92,8 @@ def run_eval(
     _write_json(summary, run_dir / "summary.json")
     _write_json(confusion, run_dir / "confusion_matrix.json")
     _write_json(run_meta, run_dir / "run_meta.json")
-    write_run_artifacts(run_dir, rows, summary, confusion, run_meta)
+    write_failure_sample_package(run_dir, failure_samples)
+    write_run_artifacts(run_dir, rows, summary, confusion, run_meta, failure_sample_count=len(failure_samples))
     return run_dir
 
 

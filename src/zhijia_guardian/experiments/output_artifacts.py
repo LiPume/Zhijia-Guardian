@@ -34,6 +34,7 @@ def write_run_artifacts(
     summary: dict[str, float | int],
     confusion: list[dict[str, int | str]],
     run_meta: dict[str, object],
+    failure_sample_count: int = 0,
 ) -> None:
     figures_dir = run_dir / "figures"
     tables_dir = run_dir / "tables"
@@ -43,8 +44,8 @@ def write_run_artifacts(
     (figures_dir / "confusion_matrix.svg").write_text(render_confusion_matrix_svg(rows), encoding="utf-8")
     _write_errors_csv(rows, tables_dir / "errors.csv")
     _write_leaderboard_csv(summary, run_meta, tables_dir / "leaderboard.csv")
-    _write_run_report(run_dir, rows, summary, confusion, run_meta)
-    _write_manifest(run_dir, rows, summary, run_meta)
+    _write_run_report(run_dir, rows, summary, confusion, run_meta, failure_sample_count)
+    _write_manifest(run_dir, rows, summary, run_meta, failure_sample_count)
 
 
 def _write_errors_csv(rows: list[EvalRow], path: Path) -> None:
@@ -90,6 +91,7 @@ def _write_run_report(
     summary: dict[str, float | int],
     confusion: list[dict[str, int | str]],
     run_meta: dict[str, object],
+    failure_sample_count: int,
 ) -> None:
     errors = [row for row in rows if not row.fault_correct or not row.root_correct]
     lines = [
@@ -116,6 +118,13 @@ def _write_run_report(
             "",
             "![Confusion Matrix](figures/confusion_matrix.svg)",
             "",
+            "## Failure Samples",
+            "",
+            f"- count: `{failure_sample_count}`",
+            "- jsonl: [failure_samples.jsonl](failure_samples.jsonl)",
+            "- table: [tables/failure_samples.csv](tables/failure_samples.csv)",
+            "- per-scenario packages: `failure_samples/{scenario_id}/failure_sample.json`",
+            "",
             "## Error Cases",
             "",
             "| Scenario | True Fault | Pred Fault | True Root | Pred Root | Report |",
@@ -141,11 +150,13 @@ def _write_manifest(
     rows: list[EvalRow],
     summary: dict[str, float | int],
     run_meta: dict[str, object],
+    failure_sample_count: int,
 ) -> None:
     manifest = {
         "run_id": run_meta.get("run_id"),
         "method": run_meta.get("method"),
         "num_scenarios": len(rows),
+        "failure_sample_count": failure_sample_count,
         "summary": summary,
         "key_files": {
             "run_report": "run_report.md",
@@ -153,6 +164,9 @@ def _write_manifest(
             "eval": "eval.csv",
             "errors": "tables/errors.csv",
             "leaderboard": "tables/leaderboard.csv",
+            "failure_samples_jsonl": "failure_samples.jsonl",
+            "failure_samples_table": "tables/failure_samples.csv",
+            "failure_samples_dir": "failure_samples/",
             "confusion_matrix": "figures/confusion_matrix.svg",
         },
     }

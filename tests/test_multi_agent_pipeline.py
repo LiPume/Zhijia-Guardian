@@ -37,6 +37,8 @@ def test_multi_agent_demo_eval_outputs_trace_and_evidence(tmp_path):
     assert (run_dir / "figures" / "confusion_matrix.svg").exists()
     assert (run_dir / "tables" / "errors.csv").exists()
     assert (run_dir / "tables" / "leaderboard.csv").exists()
+    assert (run_dir / "failure_samples.jsonl").exists()
+    assert (run_dir / "tables" / "failure_samples.csv").exists()
 
     diagnosis = json.loads((run_dir / "diagnoses" / "manual_v0_1_000001.json").read_text(encoding="utf-8"))
     assert diagnosis["method"] == "multi_agent_tools"
@@ -51,6 +53,16 @@ def test_multi_agent_demo_eval_outputs_trace_and_evidence(tmp_path):
     for claim in diagnosis["claims"]:
         assert claim["evidence_ids"]
         assert set(claim["evidence_ids"]).issubset(evidence_ids)
+
+    failure_sample_path = run_dir / "failure_samples" / "manual_v0_1_000001" / "failure_sample.json"
+    assert failure_sample_path.exists()
+    failure_sample = json.loads(failure_sample_path.read_text(encoding="utf-8"))
+    assert failure_sample["scenario_id"] == "manual_v0_1_000001"
+    assert failure_sample["true_fault_type"] == "perception_miss"
+    assert failure_sample["recommended_data"]
+    assert failure_sample["regression_test_config"]["diagnosis_input"] == "observed_view_only"
+    assert len(failure_sample["scenario_record_hash"]) == 64
+    assert not (run_dir / "failure_samples" / "manual_v0_1_000004" / "failure_sample.json").exists()
 
 
 def test_multi_agent_graph_observed_view_hides_oracle_and_generation(tmp_path):
