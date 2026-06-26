@@ -17,13 +17,13 @@
 - Rule-only baseline 和评估入口。
 - Multi-Agent + Tools 纯规则诊断链路，包含 metric、scene、perception、planning、control、root cause、report agent。
 - `run_id` 级实验输出目录，包含 `run_report.md`、`figures/`、`tables/`、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
+- Streamlit 只读工作台，直接读取输出包展示指标、错误样本、BEV、timeline、agent trace 和报告。
 - pytest 覆盖 schema、真实 adapter、demo eval、manual generator 和无标签泄漏。
 
 暂未完成的部分：
 
 - LangGraph 依赖化编排；当前先使用轻量 `diagnosis_graph.py` 保持无额外依赖。
 - Single-LLM baseline。
-- Streamlit 工作台。
 - failure sample package。
 - CARLA / SafeBench 全链路仿真接入。
 
@@ -274,6 +274,12 @@ python experiments/run_eval.py \
 python -m pytest
 ```
 
+启动只读工作台：
+
+```bash
+streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501
+```
+
 ## 当前实验结果
 
 在 72 个 noisy manual 样本上，当前可复现实验结果为：
@@ -352,7 +358,7 @@ DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 A
 - 固化 Multi-Agent + Tools 的错误分析和阈值配置。
 - 完善 `diagnosis.json`、`report.md` 和 claim/evidence 反查。
 - 做固定 seed 的 100+ noisy manual test split。
-- 实现 Streamlit 只读工作台，先展示 JSON 输出，不接实时仿真。
+- 打磨 Streamlit 工作台的筛选、错误样本复盘和输出包浏览。
 
 中期增强：
 
@@ -383,6 +389,7 @@ DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 A
 configs/                 # 阈值、路径、LLM 开关
 docs/                    # adapter contract 与真实数据字段映射
 docs/output_contract.md  # 实验输出规范
+docs/workbench.md        # Streamlit 工作台说明
 docx/                    # 计划书、设计文档、todo
 experiments/             # 实验 CLI 和 baseline 入口
 scripts/                 # 数据生成与 smoke test 脚本

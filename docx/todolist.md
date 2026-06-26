@@ -27,7 +27,7 @@
 - [x] noisy manual benchmark：用于第一版可控根因评估，避免只做不可评价的真实数据展示。
 - [x] Rule-only baseline：用于验证数据、指标和评估链路，也是 Multi-Agent 的下限。
 - [x] Multi-Agent + Tools：第一版必须在 LLM 关闭时可运行，Agent 本质上是结构化诊断节点。
-- [ ] Streamlit 工作台：先只读 JSON 输出和实验结果，不接实时 CARLA。
+- [x] Streamlit 工作台：先只读 JSON 输出和实验结果，不接实时 CARLA。
 
 需要后移或删减：
 
@@ -456,7 +456,7 @@ parse_scenario
 - [x] 每个场景输出 `diagnosis.json` 和 `report.md`。
 - [x] 每个场景输出 BEV SVG 和 evidence timeline SVG。
 - [x] 每次 run 输出 `run_report.md`、`artifacts_manifest.json`、`tables/errors.csv`、`tables/leaderboard.csv`。
-- [ ] Agent 每一步结果可以在 Streamlit 中展示。
+- [x] Agent 每一步结果可以在 Streamlit 中展示。
 - [x] 报告中每个结论能反查到 metrics evidence。
 - [x] 每个 claim 都有 `claim_id` 和 `evidence_ids`。
 
@@ -484,23 +484,25 @@ parse_scenario
 
 实现文件：
 
-- [ ] `app/streamlit_app.py`
+- [x] `app/streamlit_app.py`
+- [x] `src/zhijia_guardian/workbench/run_loader.py`
+- [x] `docs/workbench.md`
 
 页面功能：
 
-- [ ] 场景选择。
-- [ ] 轨迹/BEV 图。
-- [ ] TTC、速度、confidence、brake 时间线。
-- [ ] Agent 诊断链路。
-- [ ] 根因排序。
-- [ ] 诊断报告。
-- [ ] 实验结果表。
+- [x] 场景选择。
+- [x] 轨迹/BEV 图。
+- [x] evidence timeline。
+- [x] Agent 诊断链路。
+- [x] 根因排序。
+- [x] 诊断报告。
+- [x] 实验结果表。
 
 验收标准：
 
-- [ ] 三个 demo 能在界面完整展示。
-- [ ] 点击一个场景能看到指标、根因和报告。
-- [ ] 页面不依赖 CARLA 实时运行，只读 JSON 输出。
+- [x] 三个 demo 能在界面完整展示。
+- [x] 点击一个场景能看到指标、根因和报告。
+- [x] 页面不依赖 CARLA 实时运行，只读 JSON 输出。
 
 ## 12. P3：失败样本包
 
@@ -612,7 +614,7 @@ parse_scenario
 - [x] 混淆矩阵和对比表。
 - [x] BEV、timeline、confusion matrix 静态 SVG。
 - [x] `run_report.md` 和 `errors.csv` 输出包。
-- [ ] Streamlit 工作台。
+- [x] Streamlit 工作台。
 - [x] 自动诊断报告。
 - [ ] failure sample package。
 - [x] 数据格式文档。
@@ -623,7 +625,7 @@ parse_scenario
 当满足以下条件时，MVP 才算完成：
 
 - [ ] 在 `yolo` 环境下，一条命令能跑完整评估。
-- [ ] 三个 demo 在 Streamlit 中可展示。
+- [x] 三个 demo 在 Streamlit 中可展示。
 - [x] 诊断报告中的每个结论都有 evidence。
 - [ ] Rule-only、Single-LLM、Multi-Agent + Tools 三组结果能对比。
 - [x] 测试集有 Macro-F1、Root Cause Top-1、Time MAE、Evidence Coverage、Hallucination Rate。
@@ -634,7 +636,7 @@ parse_scenario
 
 后续代码必须做到像常见开源仓库一样可复现、可阅读、可一键运行。
 
-- [ ] `README.md` 提供环境安装、数据准备、生成样本、跑评估、启动 Streamlit 的命令。
+- [x] `README.md` 提供环境安装、数据准备、生成样本、跑评估、启动 Streamlit 的命令。
 - [ ] 所有核心逻辑在 `src/`，不把业务逻辑写死在 notebook。
 - [ ] 所有脚本只做 CLI 入口，放在 `scripts/` 或 `experiments/`。
 - [ ] 所有配置放在 `configs/`，不在代码中硬编码阈值、路径、LLM 开关。
