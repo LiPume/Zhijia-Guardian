@@ -288,10 +288,14 @@ def planning_for_frame(
     source = TrajectorySource.OFFLINE_PLANNER
     y_offset = 3.8
     step = 2.3
-    if fault_type in {"planning_collision_risk", "control_delay"}:
-        source = TrajectorySource.PERTURBED_PLANNER if fault_type == "planning_collision_risk" else TrajectorySource.MODEL_PREDICTION
+    if fault_type == "planning_collision_risk":
+        source = TrajectorySource.PERTURBED_PLANNER
         y_offset = 0.0
-        step = 2.8 if fault_type == "planning_collision_risk" else 1.8
+        step = 2.8
+    elif fault_type == "control_delay":
+        source = TrajectorySource.MODEL_PREDICTION
+        y_offset = 3.6
+        step = 0.8
     if fault_type == "normal" and difficulty == "boundary":
         y_offset = rng.choice([2.8, 3.2])
     trajectory = [
@@ -338,9 +342,9 @@ def observed_events(fault_type: str, fault_time: float | None, difficulty: str) 
     if fault_time is None:
         return [
             EventRecord(
-                event_type="context",
+                event_type="boundary_driving_context",
                 timestamp=0.0,
-                description="normal or boundary driving context",
+                description="Traffic context is close to a risk threshold but has no injected fault metadata.",
                 attributes={"difficulty": difficulty},
             )
         ]

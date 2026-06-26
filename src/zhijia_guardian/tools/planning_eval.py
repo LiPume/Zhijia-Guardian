@@ -41,14 +41,15 @@ def evaluate_planning(
             continue
         diagnosable_frames += 1
         for point in frame.planning.trajectory:
+            if point.dt <= 0:
+                continue
             for actor in frame.actors_gt:
                 actor_x = actor.x + actor.vx * point.dt
                 actor_y = actor.y + actor.vy * point.dt
                 margin = point_to_actor_margin(point.x, point.y, actor_x, actor_y, actor.length, actor.width)
-                event_time = frame.timestamp + point.dt
                 if min_margin is None or margin < min_margin:
                     min_margin = margin
-                    min_margin_time = event_time
+                    min_margin_time = frame.timestamp
                 if margin <= collision_margin:
                     collision_count += 1
 

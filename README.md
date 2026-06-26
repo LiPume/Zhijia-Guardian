@@ -15,12 +15,13 @@
 - 真实数据兼容的 noisy manual 场景生成脚本。
 - TTC、碰撞、感知异常、规划风险、控制延迟等指标工具。
 - Rule-only baseline 和评估入口。
+- Multi-Agent + Tools 纯规则诊断链路，包含 metric、scene、perception、planning、control、root cause、report agent。
 - `run_id` 级实验输出目录、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
 - pytest 覆盖 schema、真实 adapter、demo eval、manual generator 和无标签泄漏。
 
 暂未完成的部分：
 
-- LangGraph 多 Agent 主流程。
+- LangGraph 依赖化编排；当前先使用轻量 `diagnosis_graph.py` 保持无额外依赖。
 - Single-LLM baseline。
 - Streamlit 工作台。
 - failure sample package。
@@ -253,6 +254,16 @@ python experiments/run_eval.py \
   --seed 42
 ```
 
+运行 Multi-Agent + Tools：
+
+```bash
+python experiments/run_eval.py \
+  --method multi_agent_tools \
+  --dataset data/sample_scenarios/manual_json/v0_1 \
+  --run-id manual_v0_1_noisy_multi_agent_seed42 \
+  --seed 42
+```
+
 运行测试：
 
 ```bash
@@ -261,7 +272,9 @@ python -m pytest
 
 ## 当前实验结果
 
-在 72 个 noisy manual 样本上，当前 Rule-only baseline 的一次 smoke 结果为：
+在 72 个 noisy manual 样本上，当前可复现实验结果为：
+
+Rule-only baseline：
 
 ```json
 {
@@ -270,14 +283,30 @@ python -m pytest
   "fault_macro_f1": 0.7533,
   "root_top1_accuracy": 0.7361,
   "module_level_accuracy": 0.7361,
-  "fault_start_time_mae": 0.6905,
+  "fault_start_time_mae": 0.6529,
   "evidence_coverage": 1.0,
   "evidence_correctness": 1.0,
   "hallucination_rate": 0.0
 }
 ```
 
-这组数值目前只说明工程链路已经跑通，不能作为最终论文结论。后续需要固定 train / validation / test split，扩大 noisy manual 集合，并加入 Multi-Agent + Tools 与 Single-LLM baseline 对比。
+Multi-Agent + Tools，LLM 关闭：
+
+```json
+{
+  "num_scenarios": 72,
+  "fault_accuracy": 0.8611,
+  "fault_macro_f1": 0.8606,
+  "root_top1_accuracy": 0.8611,
+  "module_level_accuracy": 0.8611,
+  "fault_start_time_mae": 0.4967,
+  "evidence_coverage": 1.0,
+  "evidence_correctness": 1.0,
+  "hallucination_rate": 0.0
+}
+```
+
+这组数值目前说明工程链路和初版主方法已经跑通，不能直接作为最终论文结论。后续需要固定 train / validation / test split，扩大 noisy manual 集合，并加入 Single-LLM baseline 对比。
 
 ## 评估指标
 
@@ -316,8 +345,8 @@ DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 A
 短期必须完成：
 
 - 补齐 comfort / lane deviation / route progress 等指标。
-- 实现 Multi-Agent + Tools 的纯规则版本。
-- 实现 `diagnosis.json`、`report.md` 和 claim/evidence 反查。
+- 固化 Multi-Agent + Tools 的错误分析和阈值配置。
+- 完善 `diagnosis.json`、`report.md` 和 claim/evidence 反查。
 - 做固定 seed 的 100+ noisy manual test split。
 - 实现 Streamlit 只读工作台，先展示 JSON 输出，不接实时仿真。
 

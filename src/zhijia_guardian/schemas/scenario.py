@@ -237,7 +237,7 @@ class ScenarioRecord(StrictModel):
         return self
 
     def observed_view(self) -> dict[str, Any]:
-        return self.model_dump(mode="json", exclude={"oracle"})
+        return self.model_dump(mode="json", exclude={"oracle": True, "source": {"generation": True}})
 
     def load_oracle_for_eval(self) -> OracleRecord | None:
         return self.oracle

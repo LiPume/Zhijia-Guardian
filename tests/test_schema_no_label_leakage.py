@@ -42,6 +42,19 @@ def test_observed_view_excludes_oracle():
     assert record.load_oracle_for_eval().fault_type == "control_delay"
 
 
+def test_observed_view_excludes_generation_metadata():
+    record = minimal_record(
+        source=SourceInfo(
+            dataset="manual_json",
+            version="v0_1",
+            raw_tokens={},
+            generation={"scenario_family": "control_delay_like"},
+        )
+    )
+    observed = record.observed_view()
+    assert "generation" not in observed["source"]
+
+
 def test_scenario_id_rejects_label_leakage():
     with pytest.raises(ValueError):
         minimal_record(scenario_id="perception_miss_001")
