@@ -1,0 +1,4 @@
+data_root: /data5/lzx_data/Zhijia-Guardian
+nuscenes_mini_metadata: /data5/lzx_data/Zhijia-Guardian/datasets/nuscenes_mini/extracted/v1.0-mini
+nuplan_mini_root: /data5/lzx_data/Zhijia-Guardian/datasets/nuplan_mini
+outputs_root: /data5/lzx_data/Zhijia-Guardian/outputs

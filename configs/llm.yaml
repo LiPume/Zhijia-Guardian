@@ -1,0 +1,5 @@
+enabled: false
+provider: openai
+model: gpt-4o-mini
+temperature: 0
+json_mode: true
