@@ -543,20 +543,20 @@ parse_scenario
 - [x] 已对 nuPlan mini DB 和 maps 执行 `unzip -t`，均无压缩错误。
 - [x] 已抽检 nuPlan mini：zip 内含 64 个 SQLite `.db`；样本 DB 表包括 `ego_pose`、`lidar_pc`、`lidar_box`、`track`、`scene`、`scenario_tag`、`traffic_light_status`。
 - [x] 暂不下载 nuPlan mini sensor blobs；单个相机/激光 zip 往往几十 GB，MVP 先使用结构化 DB + maps。
-- [ ] 在 P0.7 通过后，安装或记录 `nuscenes-devkit` 依赖。
-- [ ] 扩展 `src/adapters/nuscenes_adapter.py`：从 1 个 smoke sample 扩到 5 个 sample。
-- [ ] 当前 metadata-only 阶段输出 `perception.available=false`；若生成 synthetic detections，必须写 `perception.detection_source=synthetic_from_annotation`。
-- [ ] 扩展 `src/adapters/nuplan_adapter.py`：从 1 个 smoke scene/scenario 扩到 5 个 scenario。
-- [ ] nuPlan adapter 中 `scenario_tag` 只能进入 `events_observed.context_tags` 或抽样条件，不能作为诊断 fault label；`control.available=false`，`planning.trajectory_source` 必须明确。
-- [ ] 更新 `docs/schema_mapping_nuscenes.md` 和 `docs/schema_mapping_nuplan.md` 的实际字段覆盖情况。
+- [x] 当前 metadata-only 阶段无需安装 `nuscenes-devkit`，已在 mapping 文档记录；后续若用官方 API/媒体再安装。
+- [x] 扩展 `src/adapters/nuscenes_adapter.py`：从 1 个 smoke sample 扩到 5 个 sample。
+- [x] 当前 metadata-only 阶段输出 `perception.available=false`；若生成 synthetic detections，必须写 `perception.detection_source=synthetic_from_annotation`。
+- [x] 扩展 `src/adapters/nuplan_adapter.py`：从 1 个 smoke scene/scenario 扩到 5 个 scenario。
+- [x] nuPlan adapter 中 `scenario_tag` 只能进入 `events_observed.context_tags` 或抽样条件，不能作为诊断 fault label；`control.available=false`，`planning.trajectory_source` 必须明确。
+- [x] 更新 `docs/schema_mapping_nuscenes.md` 和 `docs/schema_mapping_nuplan.md` 的实际字段覆盖情况。
 
 验收标准：
 
-- [ ] 5 个真实 nuScenes sample 可以转成 `ScenarioRecord`。
-- [ ] 5 个真实 nuPlan scenario 可以转成 `ScenarioRecord`。
-- [ ] 不改 tools/agents 即可进入 schema validate、可视化、基础风险指标流程。
-- [ ] 若未解图像/点云媒体，不宣称完成真实感知模型评估。
-- [ ] 缺失 planning/control 时自动跳过 Planning/Control Agent 或输出 unavailable。
+- [x] 5 个真实 nuScenes sample 可以转成 `ScenarioRecord`。
+- [x] 5 个真实 nuPlan scenario 可以转成 `ScenarioRecord`。
+- [x] 不改 tools/agents 即可进入 schema validate、可视化、基础风险指标流程。
+- [x] 若未解图像/点云媒体，不宣称完成真实感知模型评估。
+- [x] 缺失 planning/control 时自动跳过 Planning/Control Agent 或输出 unavailable。
 
 ## 14. P5：CARLA + ScenarioRunner 接入
 

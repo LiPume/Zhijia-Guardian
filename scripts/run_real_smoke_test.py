@@ -15,7 +15,7 @@ from zhijia_guardian.utils.io import dump_scenario_record
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Export one nuScenes and one nuPlan smoke-test ScenarioRecord.")
+    parser = argparse.ArgumentParser(description="Export nuScenes and nuPlan smoke-test ScenarioRecord samples.")
     parser.add_argument(
         "--output-dir",
         default="data/sample_scenarios/real_smoke_test",
@@ -29,6 +29,7 @@ def parse_args() -> argparse.Namespace:
         "--nuplan-root",
         default="/data5/lzx_data/Zhijia-Guardian/datasets/nuplan_mini",
     )
+    parser.add_argument("--count", type=int, default=5, help="Number of scenarios to export per adapter.")
     return parser.parse_args()
 
 
@@ -40,6 +41,8 @@ def assert_no_oracle_in_observed(record) -> None:
 
 def main() -> None:
     args = parse_args()
+    if args.count <= 0:
+        raise ValueError("--count must be positive")
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -53,10 +56,11 @@ def main() -> None:
         scenario_ids = adapter.list_scenarios()
         if not scenario_ids:
             raise RuntimeError(f"{name} adapter did not list any scenarios")
-        record = adapter.load_scenario(scenario_ids[0])
-        assert_no_oracle_in_observed(record)
-        dump_scenario_record(record, output_dir / f"{record.scenario_id}.json")
-        coverage_rows.append(field_coverage(record))
+        for scenario_id in scenario_ids[: args.count]:
+            record = adapter.load_scenario(scenario_id)
+            assert_no_oracle_in_observed(record)
+            dump_scenario_record(record, output_dir / f"{record.scenario_id}.json")
+            coverage_rows.append(field_coverage(record))
 
     with (output_dir / "field_coverage.json").open("w", encoding="utf-8") as f:
         json.dump(coverage_rows, f, ensure_ascii=False, indent=2)

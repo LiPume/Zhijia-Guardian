@@ -10,7 +10,7 @@
 
 - Canonical `ScenarioRecord` schema，包含 `source/meta/frames/events_observed/oracle`。
 - `observed_view()` 与 `oracle` 隔离，诊断路径不能读取标签。
-- `ManualAdapter`、nuScenes metadata smoke adapter、nuPlan SQLite smoke adapter。
+- `ManualAdapter`、nuScenes metadata 5-sample smoke adapter、nuPlan SQLite 5-scenario smoke adapter。
 - 6 个 canonical demo 场景生成脚本。
 - 真实数据兼容的 noisy manual 场景生成脚本。
 - TTC、碰撞、感知异常、规划风险、控制延迟等指标工具。
@@ -181,8 +181,8 @@ evaluator reads oracle only
 负责把不同来源的数据统一转换为 `ScenarioRecord`。当前已有：
 
 - `ManualAdapter`
-- `NuScenesAdapter`，metadata smoke 版本
-- `NuPlanAdapter`，SQLite smoke 版本
+- `NuScenesAdapter`，metadata 5-sample smoke 版本
+- `NuPlanAdapter`，SQLite 5-scenario smoke 版本
 
 ### 指标工具层
 
