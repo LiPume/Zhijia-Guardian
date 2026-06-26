@@ -341,7 +341,7 @@ nuPlan smoke test 要求：
 - [x] 类别混淆检测：GT 类别与 detection 类别不一致。
 - [x] 置信度突降检测：关键目标 confidence 下降。
 - [x] 控制延迟检测：风险/规划要求制动但 brake 延迟。
-- [ ] 舒适性辅助指标：acceleration、jerk、yaw rate。
+- [x] 舒适性辅助指标：acceleration、jerk、yaw rate。
 - [x] 每个指标发现都生成结构化 evidence。
 
 Evidence 格式：

@@ -195,11 +195,11 @@ evaluator reads oracle only
 - 规划轨迹与障碍物 bbox 碰撞检测。
 - 感知漏检、误检、类别混淆、置信度突降。
 - 控制延迟检测。
+- comfort 指标：acceleration、jerk、yaw rate。
 - evidence coverage / correctness / hallucination rate 计算。
 
 待补充工具：
 
-- comfort 指标：acceleration、jerk、yaw rate。
 - route progress、lane deviation、规则违反的更完整实现。
 
 ### 多 Agent 诊断层
@@ -365,7 +365,7 @@ DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 A
 
 短期必须完成：
 
-- 补齐 comfort / lane deviation / route progress 等指标。
+- 补齐 lane deviation / route progress / 规则违反等指标。
 - 固化 Multi-Agent + Tools 的错误分析和阈值配置。
 - 完善 `diagnosis.json`、`report.md` 和 claim/evidence 反查。
 - 做固定 seed 的 100+ noisy manual test split。

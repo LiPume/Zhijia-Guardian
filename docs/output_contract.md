@@ -22,7 +22,7 @@ Each experiment writes a reproducible run package under:
 
 | Directory | Contents |
 | --- | --- |
-| `metrics/` | Per-scenario metric and evidence JSON. |
+| `metrics/` | Per-scenario metric series and evidence JSON. |
 | `diagnoses/` | Per-scenario structured diagnosis JSON. |
 | `reports/` | Per-scenario Markdown reports with figure links. |
 | `figures/` | Per-scenario BEV/timeline SVGs and run-level confusion matrix SVG. |
@@ -41,6 +41,16 @@ Each `reports/{scenario_id}.md` contains:
 - Evidence list.
 
 Every claim must reference valid evidence IDs. Diagnosis agents and reports must not read `oracle` or `source.generation`.
+
+## Metrics JSON
+
+Each `metrics/{scenario_id}.json` may contain:
+
+- `series`: time-series metrics such as `ego_speed`, `ego_longitudinal_acceleration`, `ego_jerk`, and `ego_yaw_rate`.
+- `evidence`: thresholded metric findings with unique `evidence_id`.
+
+Comfort evidence is auxiliary. It is shown for review and timeline context, but it does not directly support a
+fault label in the first rule-based MVP.
 
 ## Run Report
 
