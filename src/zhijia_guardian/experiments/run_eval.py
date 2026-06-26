@@ -11,9 +11,11 @@ from zhijia_guardian.adapters import ManualAdapter
 from zhijia_guardian.agents.report_agent import render_markdown_report
 from zhijia_guardian.baselines import diagnose_rule_only
 from zhijia_guardian.experiments.eval_metrics import EvalRow, confusion_matrix, evaluate_one, summarize
+from zhijia_guardian.experiments.output_artifacts import write_run_artifacts, write_scenario_artifacts
 from zhijia_guardian.graph import run_diagnosis_graph
 from zhijia_guardian.schemas.diagnosis import DiagnosisRecord
 from zhijia_guardian.schemas.metrics import MetricsRecord
+from zhijia_guardian.schemas.scenario import ScenarioRecord
 from zhijia_guardian.tools.run_metrics import run_all_metrics
 
 
@@ -49,7 +51,9 @@ def run_eval(
     metrics_dir = run_dir / "metrics"
     diagnoses_dir = run_dir / "diagnoses"
     reports_dir = run_dir / "reports"
-    for path in [metrics_dir, diagnoses_dir, reports_dir]:
+    figures_dir = run_dir / "figures"
+    tables_dir = run_dir / "tables"
+    for path in [metrics_dir, diagnoses_dir, reports_dir, figures_dir, tables_dir]:
         path.mkdir(parents=True, exist_ok=True)
 
     rows: list[EvalRow] = []
@@ -58,29 +62,31 @@ def run_eval(
         metrics, diagnosis = _diagnose(record, method)
         _dump_model(metrics, metrics_dir / f"{scenario_id}.json")
         _dump_model(diagnosis, diagnoses_dir / f"{scenario_id}.json")
-        _write_report(diagnosis, reports_dir / f"{scenario_id}.md")
+        figure_paths = write_scenario_artifacts(record, diagnosis, run_dir)
+        _write_report(diagnosis, reports_dir / f"{scenario_id}.md", figure_paths)
         rows.append(evaluate_one(record, diagnosis))
 
+    summary = summarize(rows)
+    confusion = confusion_matrix(rows)
+    run_meta = {
+        "run_id": run_id,
+        "method": method,
+        "dataset": str(dataset),
+        "threshold_config": "configs/thresholds.yaml",
+        "llm_config": "configs/llm.yaml",
+        "git_commit": _git_commit(),
+        "seed": seed,
+        "created_at": datetime.now().astimezone().isoformat(),
+    }
     _write_eval_csv(rows, run_dir / "eval.csv")
-    _write_json(summarize(rows), run_dir / "summary.json")
-    _write_json(confusion_matrix(rows), run_dir / "confusion_matrix.json")
-    _write_json(
-        {
-            "run_id": run_id,
-            "method": method,
-            "dataset": str(dataset),
-            "threshold_config": "configs/thresholds.yaml",
-            "llm_config": "configs/llm.yaml",
-            "git_commit": _git_commit(),
-            "seed": seed,
-            "created_at": datetime.now().astimezone().isoformat(),
-        },
-        run_dir / "run_meta.json",
-    )
+    _write_json(summary, run_dir / "summary.json")
+    _write_json(confusion, run_dir / "confusion_matrix.json")
+    _write_json(run_meta, run_dir / "run_meta.json")
+    write_run_artifacts(run_dir, rows, summary, confusion, run_meta)
     return run_dir
 
 
-def _diagnose(record, method: str) -> tuple[MetricsRecord, DiagnosisRecord]:
+def _diagnose(record: ScenarioRecord, method: str) -> tuple[MetricsRecord, DiagnosisRecord]:
     if method == "rule_only":
         metrics = run_all_metrics(record)
         return metrics, diagnose_rule_only(record, metrics)
@@ -108,9 +114,9 @@ def _write_eval_csv(rows: list[EvalRow], path: Path) -> None:
             writer.writerow(asdict(row))
 
 
-def _write_report(diagnosis: DiagnosisRecord, path: Path) -> None:
+def _write_report(diagnosis: DiagnosisRecord, path: Path, figure_paths: dict[str, str] | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_markdown_report(diagnosis), encoding="utf-8")
+    path.write_text(render_markdown_report(diagnosis, figure_paths), encoding="utf-8")
 
 
 def _git_commit() -> str:

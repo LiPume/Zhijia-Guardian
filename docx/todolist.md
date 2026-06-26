@@ -202,6 +202,7 @@ json_mode: true
 - [x] 新增 `docs/adapter_contract.md`。
 - [x] 新增 `docs/schema_mapping_nuscenes.md`。
 - [x] 新增 `docs/schema_mapping_nuplan.md`。
+- [x] 新增 `docs/output_contract.md`。
 - [ ] 新增 `docs/schema_mapping_carla.md`。
 - [x] 实现 `src/adapters/nuscenes_adapter.py` 的 smoke 版本。
 - [x] 实现 `src/adapters/nuplan_adapter.py` 的 smoke 版本。
@@ -453,6 +454,8 @@ parse_scenario
 验收标准：
 
 - [x] 每个场景输出 `diagnosis.json` 和 `report.md`。
+- [x] 每个场景输出 BEV SVG 和 evidence timeline SVG。
+- [x] 每次 run 输出 `run_report.md`、`artifacts_manifest.json`、`tables/errors.csv`、`tables/leaderboard.csv`。
 - [ ] Agent 每一步结果可以在 Streamlit 中展示。
 - [x] 报告中每个结论能反查到 metrics evidence。
 - [x] 每个 claim 都有 `claim_id` 和 `evidence_ids`。
@@ -607,6 +610,8 @@ parse_scenario
 - [x] Multi-Agent + Tools 主方法。
 - [x] 实验结果 CSV。
 - [x] 混淆矩阵和对比表。
+- [x] BEV、timeline、confusion matrix 静态 SVG。
+- [x] `run_report.md` 和 `errors.csv` 输出包。
 - [ ] Streamlit 工作台。
 - [x] 自动诊断报告。
 - [ ] failure sample package。

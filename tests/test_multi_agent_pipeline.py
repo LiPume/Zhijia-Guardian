@@ -32,11 +32,21 @@ def test_multi_agent_demo_eval_outputs_trace_and_evidence(tmp_path):
     assert summary["fault_accuracy"] >= 0.8
     assert summary["evidence_coverage"] == 1.0
     assert summary["hallucination_rate"] == 0.0
+    assert (run_dir / "run_report.md").exists()
+    assert (run_dir / "artifacts_manifest.json").exists()
+    assert (run_dir / "figures" / "confusion_matrix.svg").exists()
+    assert (run_dir / "tables" / "errors.csv").exists()
+    assert (run_dir / "tables" / "leaderboard.csv").exists()
 
     diagnosis = json.loads((run_dir / "diagnoses" / "manual_v0_1_000001.json").read_text(encoding="utf-8"))
     assert diagnosis["method"] == "multi_agent_tools"
     assert diagnosis["agent_trace"]
     assert diagnosis["candidate_root_causes"]
+    assert (run_dir / "figures" / "manual_v0_1_000001_bev.svg").exists()
+    assert (run_dir / "figures" / "manual_v0_1_000001_timeline.svg").exists()
+    report_text = (run_dir / "reports" / "manual_v0_1_000001.md").read_text(encoding="utf-8")
+    assert "../figures/manual_v0_1_000001_bev.svg" in report_text
+    assert "../figures/manual_v0_1_000001_timeline.svg" in report_text
     evidence_ids = {item["evidence_id"] for item in diagnosis["evidence"]}
     for claim in diagnosis["claims"]:
         assert claim["evidence_ids"]

@@ -16,7 +16,7 @@
 - TTC、碰撞、感知异常、规划风险、控制延迟等指标工具。
 - Rule-only baseline 和评估入口。
 - Multi-Agent + Tools 纯规则诊断链路，包含 metric、scene、perception、planning、control、root cause、report agent。
-- `run_id` 级实验输出目录、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
+- `run_id` 级实验输出目录，包含 `run_report.md`、`figures/`、`tables/`、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
 - pytest 覆盖 schema、真实 adapter、demo eval、manual generator 和无标签泄漏。
 
 暂未完成的部分：
@@ -117,7 +117,11 @@
 ```text
 metrics/              # 每个场景的指标 evidence
 diagnoses/            # 每个场景的结构化诊断结果
-reports/              # 每个场景的 Markdown 报告
+reports/              # 每个场景的 Markdown 报告，内嵌图链接
+figures/              # BEV、timeline、confusion matrix SVG
+tables/               # errors.csv、leaderboard.csv
+run_report.md         # 一次实验的总览报告
+artifacts_manifest.json
 eval.csv              # 场景级评估结果
 summary.json          # 汇总指标
 confusion_matrix.json # 混淆矩阵
@@ -378,6 +382,7 @@ DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 A
 ```text
 configs/                 # 阈值、路径、LLM 开关
 docs/                    # adapter contract 与真实数据字段映射
+docs/output_contract.md  # 实验输出规范
 docx/                    # 计划书、设计文档、todo
 experiments/             # 实验 CLI 和 baseline 入口
 scripts/                 # 数据生成与 smoke test 脚本

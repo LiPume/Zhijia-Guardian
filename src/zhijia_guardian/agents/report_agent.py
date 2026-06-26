@@ -3,7 +3,7 @@ from __future__ import annotations
 from zhijia_guardian.schemas.diagnosis import DiagnosisRecord
 
 
-def render_markdown_report(diagnosis: DiagnosisRecord) -> str:
+def render_markdown_report(diagnosis: DiagnosisRecord, figure_paths: dict[str, str] | None = None) -> str:
     lines = [
         f"# Diagnosis {diagnosis.scenario_id}",
         "",
@@ -15,9 +15,14 @@ def render_markdown_report(diagnosis: DiagnosisRecord) -> str:
         f"- predicted_fault_start_time: `{diagnosis.predicted_fault_start_time}`",
         f"- confidence: `{diagnosis.confidence:.2f}`",
         "",
-        "## Candidate Root Causes",
-        "",
     ]
+    if figure_paths:
+        lines.extend(["## Figures", ""])
+        if figure_paths.get("bev"):
+            lines.extend([f"![BEV]({figure_paths['bev']})", ""])
+        if figure_paths.get("timeline"):
+            lines.extend([f"![Timeline]({figure_paths['timeline']})", ""])
+    lines.extend(["## Candidate Root Causes", ""])
     for index, candidate in enumerate(diagnosis.candidate_root_causes, start=1):
         evidence_ids = ", ".join(candidate.evidence_ids) or "none"
         lines.append(
