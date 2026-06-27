@@ -34,3 +34,26 @@
 - 因为 `trajectory_source=expert_future` 不是被测 planner 输出，Planning Agent 会把它视作不可诊断规划故障并跳过。
 
 若后续在 nuPlan 场景骨架上运行离线 planner，设置 `planning.trajectory_source=offline_planner`。若注入危险轨迹，设置 `planning.trajectory_source=perturbed_planner`，oracle 单独提供给 evaluation。
+
+## Planning Perturbation Benchmark v0.1
+
+`scripts/generate_nuplan_perturbation.py` builds paired canonical records from real nuPlan mini scenes:
+
+- A benign record applies at most 0.05 m lateral jitter to the expert-derived candidate.
+- A collision record smoothly redirects one local trajectory point toward a real annotated actor future position.
+- Both variants use `planning.trajectory_source=perturbed_planner`, so provenance alone does not reveal the label.
+- Scenario IDs and filenames are opaque. Parent IDs, perturbation type, and target actor are stored only in
+  `source.generation`, which `observed_view()` removes.
+- The generator accepts a parent scene only when the benign trajectory has zero planning collisions and the fault
+  trajectory has at least one collision after injection.
+
+The expert future remains a source trajectory, not a claimed native nuPlan planner output. The derived benchmark is
+stored at:
+
+```text
+/data5/lzx_data/Zhijia-Guardian/datasets/nuplan_mini/derived/planning_perturbation_v0_1/
+```
+
+The first integration set contains five parent scenes and ten paired records. Rule-only and Multi-Agent + Tools
+both classify all ten correctly. This validates the adapter/perturbation/diagnosis path, not real-world planner
+accuracy; the injected collision is intentionally unambiguous.

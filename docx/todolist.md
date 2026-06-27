@@ -313,7 +313,7 @@ nuPlan smoke test 要求：
 - [x] `control.available=false`。
 - [x] `planning.trajectory_source=expert_future` 或 `unavailable`。
 - [x] `scenario_tag` 只能进入 `events_observed.context_tags` 或抽样条件，不能进入 `oracle`。
-- [ ] 若后续生成危险规划轨迹，必须标注 `planning.trajectory_source=perturbed_planner`。
+- [x] nuPlan 危险与安全扰动轨迹均标注 `planning.trajectory_source=perturbed_planner`，避免 provenance 直接泄漏标签。
 
 验收标准：
 
@@ -601,7 +601,7 @@ parse_scenario
 
 ## 16. P6：后续真实数据扩展
 
-- [ ] nuPlan mini：真实场景骨架 + offline/perturbed planner 规划风险诊断，不把 `scenario_tag` 当 fault label。
+- [x] nuPlan mini：真实场景骨架 + 成对 perturbed planner 规划风险诊断；5 个父 scene/10 个样本，且不把 `scenario_tag` 当 fault label。
 - [ ] nuScenes mini：metadata-only 先做 schema/annotation 映射；若要真实感知评估，选择性解出 5 个 sample 媒体并运行 detector。
 - [ ] DeepAccident mini：调研下载 20 个 accident/normal 场景，作为事故检测和 failure sample adapter 候选。
 - [ ] DoTA/DADA：只作为 accident/anomaly 时间定位补充，不作为 root_module 诊断主数据。

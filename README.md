@@ -183,6 +183,7 @@ evaluator reads oracle only
 - `ManualAdapter`
 - `NuScenesAdapter`，metadata 5-sample smoke 版本
 - `NuPlanAdapter`，SQLite 5-scenario smoke 版本
+- nuPlan planning perturbation benchmark，基于真实 scene 生成 5 对 opaque benign/collision 轨迹样本
 
 ### 指标工具层
 
@@ -253,6 +254,12 @@ python scripts/generate_canonical_demo.py
 
 ```bash
 python scripts/run_real_smoke_test.py
+```
+
+生成 nuPlan 真实场景轨迹扰动集：
+
+```bash
+python scripts/generate_nuplan_perturbation.py --pairs 5 --seed 42 --clean
 ```
 
 生成 noisy manual benchmark：
