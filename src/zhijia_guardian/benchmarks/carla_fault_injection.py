@@ -1,0 +1,234 @@
+from __future__ import annotations
+
+import json
+import math
+import shutil
+from pathlib import Path
+
+from zhijia_guardian.adapters.carla_adapter import (
+    CarlaAdapter,
+    CarlaBoundingBox,
+    CarlaDetectionSnapshot,
+    CarlaLabelFile,
+    CarlaRawLog,
+    CarlaTransform,
+    CarlaVector3D,
+)
+from zhijia_guardian.schemas.scenario import OracleRecord, TrajectorySource
+from zhijia_guardian.utils.io import dump_scenario_jsonl
+
+
+VARIANTS = (
+    "normal",
+    "perception_miss",
+    "perception_false_positive",
+    "perception_confidence_drop",
+    "planning_collision_risk",
+    "control_delay",
+)
+
+ROOT_MODULE = {
+    "normal": "none",
+    "perception_miss": "perception",
+    "perception_false_positive": "perception",
+    "perception_confidence_drop": "perception",
+    "planning_collision_risk": "planning",
+    "control_delay": "control",
+}
+
+
+def build_carla_fault_benchmark(
+    base_log_dir: str | Path,
+    output_root: str | Path,
+    *,
+    clean: bool = False,
+) -> dict:
+    base_log_dir = Path(base_log_dir)
+    output_root = Path(output_root)
+    log_dir = output_root / "raw" / "logs"
+    label_dir = output_root / "raw" / "labels"
+    canonical_dir = output_root / "canonical"
+    if clean and output_root.exists():
+        shutil.rmtree(output_root)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    label_dir.mkdir(parents=True, exist_ok=True)
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+
+    base_paths = sorted(base_log_dir.glob("*.json"))
+    if not base_paths:
+        raise FileNotFoundError(f"no CARLA base logs found in {base_log_dir}")
+
+    manifest_rows = []
+    scenario_index = 0
+    for parent_index, base_path in enumerate(base_paths, start=1):
+        base = _load_raw_log(base_path)
+        _validate_base_log(base, base_path)
+        for variant in VARIANTS:
+            scenario_index += 1
+            scenario_id = f"carla_v0_1_{scenario_index:06d}"
+            record, fault_start_time = _make_variant(base, variant, scenario_id)
+            log_path = log_dir / f"{scenario_index:06d}.json"
+            label_path = label_dir / f"{scenario_id}.label.json"
+            _dump_model(record, log_path)
+            label = CarlaLabelFile(
+                scenario_id=scenario_id,
+                oracle=OracleRecord(
+                    visible_to_diagnosis=False,
+                    fault_type=variant,
+                    root_module=ROOT_MODULE[variant],
+                    fault_start_time=fault_start_time,
+                    notes="normal replay" if variant == "normal" else f"offline signal injection: {variant}",
+                ),
+            )
+            _dump_model(label, label_path)
+            manifest_rows.append(
+                {
+                    "scenario_id": scenario_id,
+                    "parent_group": f"carla_parent_{parent_index:04d}",
+                    "base_log": base_path.name,
+                    "variant": variant,
+                    "fault_start_time": fault_start_time,
+                    "log_file": str(log_path.relative_to(output_root)),
+                    "label_file": str(label_path.relative_to(output_root)),
+                }
+            )
+
+    manifest = {
+        "dataset": "carla_fault_injection_v0_1",
+        "injection_scope": "offline_signal_level",
+        "num_parent_logs": len(base_paths),
+        "num_scenarios": len(manifest_rows),
+        "variants": list(VARIANTS),
+        "scenarios": manifest_rows,
+    }
+    manifest_path = label_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    adapter = CarlaAdapter(log_dir, label_dir)
+    canonical_records = [adapter.load_scenario(scenario_id) for scenario_id in adapter.list_scenarios()]
+    dump_scenario_jsonl(canonical_records, canonical_dir / "scenarios.jsonl")
+    return manifest
+
+
+def _load_raw_log(path: Path) -> CarlaRawLog:
+    with path.open("r", encoding="utf-8") as f:
+        return CarlaRawLog.model_validate(json.load(f))
+
+
+def _dump_model(model, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(model.model_dump(mode="json", exclude_none=True), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _validate_base_log(base: CarlaRawLog, path: Path) -> None:
+    if not any(frame.perception.available and frame.perception.detections for frame in base.frames):
+        raise ValueError(f"base CARLA log has no perception detections: {path}")
+    if not any(frame.planning.available and frame.planning.trajectory for frame in base.frames):
+        raise ValueError(f"base CARLA log has no planning trajectory: {path}")
+    if not any(frame.control.available for frame in base.frames):
+        raise ValueError(f"base CARLA log has no control output: {path}")
+    if _key_actor_id(base) is None:
+        raise ValueError(f"base CARLA log has no key actor: {path}")
+
+
+def _make_variant(base: CarlaRawLog, variant: str, scenario_id: str) -> tuple[CarlaRawLog, float | None]:
+    record = base.model_copy(deep=True, update={"scenario_id": scenario_id})
+    if variant == "normal":
+        return record, None
+
+    key_actor_id = _key_actor_id(record)
+    if key_actor_id is None:
+        raise ValueError("key actor disappeared while copying CARLA log")
+    start_index = max(1, len(record.frames) * 2 // 5)
+    start_time = record.frames[start_index].simulation_time - record.frames[0].simulation_time
+
+    if variant == "perception_miss":
+        for frame in record.frames[start_index:]:
+            frame.perception.detections = [
+                item for item in frame.perception.detections if item.matched_actor_id != key_actor_id
+            ]
+    elif variant == "perception_false_positive":
+        for frame in record.frames[start_index:]:
+            frame.perception.detections.append(_false_positive(frame, key_actor_id))
+    elif variant == "perception_confidence_drop":
+        for frame in record.frames[start_index:]:
+            for detection in frame.perception.detections:
+                if detection.matched_actor_id == key_actor_id:
+                    detection.confidence = min(detection.confidence, 0.45)
+    elif variant == "planning_collision_risk":
+        for frame in record.frames[start_index:]:
+            target = next((actor for actor in frame.actors if actor.actor_id == key_actor_id), None)
+            if target is None or not frame.planning.trajectory:
+                continue
+            frame.planning.trajectory_source = TrajectorySource.PERTURBED_PLANNER
+            frame.planning.trajectory[-1].transform = target.transform.model_copy(deep=True)
+            frame.planning.trajectory[-1].speed = max(frame.planning.target_speed or 0.0, 1.0)
+    elif variant == "control_delay":
+        risk_index, min_ttc = _minimum_ttc(record, key_actor_id)
+        if risk_index is None or min_ttc is None or min_ttc >= 1.5:
+            raise ValueError("control-delay injection requires a base log with min TTC below 1.5 s")
+        start_index = risk_index
+        start_time = record.frames[start_index].simulation_time - record.frames[0].simulation_time
+        for frame in record.frames[start_index:]:
+            if frame.control.available:
+                frame.control.brake = 0.0
+    else:
+        raise ValueError(f"unsupported CARLA fault variant: {variant}")
+    return record, round(start_time, 6)
+
+
+def _key_actor_id(record: CarlaRawLog) -> int | None:
+    for frame in record.frames:
+        for actor in frame.actors:
+            if actor.is_key_actor:
+                return actor.actor_id
+    return None
+
+
+def _false_positive(frame, key_actor_id: int) -> CarlaDetectionSnapshot:
+    key_actor = next((actor for actor in frame.actors if actor.actor_id == key_actor_id), None)
+    if key_actor is None:
+        bbox = CarlaBoundingBox(extent=CarlaVector3D(x=2.2, y=0.9, z=0.8))
+    else:
+        bbox = key_actor.bounding_box.model_copy(deep=True)
+    ego_location = frame.ego.transform.location
+    transform = CarlaTransform(
+        location=CarlaVector3D(x=ego_location.x + 30.0, y=ego_location.y + 30.0, z=ego_location.z),
+        rotation=frame.ego.transform.rotation.model_copy(deep=True),
+    )
+    return CarlaDetectionSnapshot(
+        track_id=f"injected_fp_{frame.frame_id}",
+        type="vehicle",
+        confidence=0.88,
+        transform=transform,
+        bounding_box=bbox,
+        matched_actor_id=None,
+    )
+
+
+def _minimum_ttc(record: CarlaRawLog, actor_id: int) -> tuple[int | None, float | None]:
+    best_index: int | None = None
+    best_ttc: float | None = None
+    for index, frame in enumerate(record.frames):
+        actor = next((item for item in frame.actors if item.actor_id == actor_id), None)
+        if actor is None:
+            continue
+        ego = frame.ego
+        yaw = math.radians(ego.transform.rotation.yaw)
+        heading_x, heading_y = math.cos(yaw), math.sin(yaw)
+        dx = actor.transform.location.x - ego.transform.location.x
+        dy = actor.transform.location.y - ego.transform.location.y
+        longitudinal = dx * heading_x + dy * heading_y
+        lateral = -dx * heading_y + dy * heading_x
+        ego_speed = ego.velocity.x * heading_x + ego.velocity.y * heading_y
+        actor_speed = actor.velocity.x * heading_x + actor.velocity.y * heading_y
+        closing_speed = ego_speed - actor_speed
+        if longitudinal <= 0.0 or abs(lateral) > 3.0 or closing_speed <= 0.1:
+            continue
+        ttc = longitudinal / closing_speed
+        if best_ttc is None or ttc < best_ttc:
+            best_index, best_ttc = index, ttc
+    return best_index, best_ttc
