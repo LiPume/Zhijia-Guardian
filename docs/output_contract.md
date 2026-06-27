@@ -26,8 +26,8 @@ With `--resume`, existing per-scenario metrics and diagnoses are validated and r
 
 `experiments/compare_runs.py` validates that all input runs contain the same scenario IDs, ranks methods by fault
 Macro-F1, and writes `comparison.csv`, `comparison.json`, and `comparison.md` under an explicit comparison output
-directory. The v0.1 package is stored at
-`/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_1_seed42/`.
+directory. The current v0.2 package is stored at
+`/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_2_seed42/`; the v0.1 package remains archived beside it.
 
 ## Directories
 

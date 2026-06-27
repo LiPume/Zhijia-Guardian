@@ -467,11 +467,11 @@ parse_scenario
 
 当前 72 个 noisy manual 样本结果：
 
-| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time MAE | Evidence Correctness | Hallucination Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Multi-Agent + Tools | 0.8611 | 0.8606 | 0.8611 | 0.4967 | 1.0000 | 0.0000 |
-| Rule-only | 0.7361 | 0.7533 | 0.7361 | 0.6529 | 1.0000 | 0.0000 |
-| Single-LLM / DeepSeek V4 Pro | 0.5694 | 0.4156 | 0.7361 | 0.3511 | 0.7286 | 0.1412 |
+| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct | Evidence Correctness | Hallucination Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Multi-Agent + Tools | 0.9028 | 0.9049 | 0.9028 | 0.9833 | 0.4545 | 1.0000 | 0.0000 |
+| Rule-only | 0.7361 | 0.7563 | 0.7361 | 0.9667 | 0.3956 | 1.0000 | 0.0000 |
+| Single-LLM / DeepSeek V4 Pro | 0.7500 | 0.6169 | 0.9028 | 0.8667 | 0.2645 | 0.6827 | 0.1331 |
 
 ## 10. P2：Single-LLM baseline
 
@@ -490,7 +490,7 @@ parse_scenario
 
 验收标准：
 
-- [x] 已在相同 72 样本、seed 42、commit `3691b8f` 上完成三方法结果对比。
+- [x] 已在相同 72 样本、seed 42、commit `48f0578` 上完成 v0.2 三方法结果对比。
 - [x] 新增 `experiments/compare_runs.py`，输出 comparison CSV/JSON/Markdown 并校验场景集合一致。
 - [x] 能统计 hallucination rate；无效 evidence 引用已有自动测试。
 

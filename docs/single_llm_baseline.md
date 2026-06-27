@@ -98,7 +98,7 @@ The first real 5-scenario smoke test completed with all API responses parsed and
 
 This smoke result validates the pipeline only; it is too small for a method-level conclusion.
 
-## Full 72-Scenario Result
+## Full 72-Scenario Result v0.1
 
 The reportable run is `manual_v0_1_noisy_single_llm_deepseek_v4_pro_seed42` at commit `3691b8f`:
 
@@ -125,3 +125,29 @@ The dominant confusions were systematic rather than random:
 This supports using the LLM as an optional report or evidence-organization layer, not as the sole root-cause
 classifier. It does not establish real-road generalization because the benchmark is still generated from the
 canonical manual simulator.
+
+## Full 72-Scenario Result v0.2
+
+After replacing circular collision envelopes with oriented vehicle rectangles, the reportable v0.2 run is
+`manual_v0_2_noisy_single_llm_deepseek_v4_pro_seed42` at commit `48f0578`:
+
+| Metric | Value |
+| --- | ---: |
+| Fault Accuracy | 0.7500 |
+| Fault Macro-F1 | 0.6169 |
+| Root Top-1 Accuracy | 0.9028 |
+| Fault Start Time Coverage | 0.8667 |
+| Fault Start Time MAE @ Correct Fault | 0.2645 |
+| Fault Start Time Coverage @ Correct Fault | 0.8261 |
+| Evidence Coverage | 1.0000 |
+| Evidence Correctness | 0.6827 |
+| Hallucination Rate | 0.1331 |
+
+The successful responses recorded 127,572 input and 156,093 output tokens. Seventy scenarios parsed on their
+stored first attempt and two on a second attempt. One run interruption caused by two consecutive empty JSON
+responses was recovered with `--resume`; discarded-response token usage is not included.
+
+The geometry correction removed the dominant control/planning confusion: 11 of 12 `control_delay` scenarios are
+now correct. The remaining systematic weakness is subtype separation: 11 of 12 `perception_confidence_drop`
+scenarios are still classified as `perception_miss`. This is why root-module accuracy is high while fault Macro-F1
+remains much lower than Multi-Agent + Tools.

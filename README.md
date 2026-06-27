@@ -342,25 +342,25 @@ streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501
 
 ## 当前实验结果
 
-三种方法已在完全相同的 72 个 noisy manual 场景、seed 42 和 commit `3691b8f` 上完成统一评估：
+三种方法已在完全相同的 72 个 noisy manual 场景、seed 42 和 commit `48f0578` 上完成 v0.2 统一评估：
 
-| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time MAE | Evidence Correctness | Hallucination Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Multi-Agent + Tools | 0.8611 | 0.8606 | 0.8611 | 0.4967 | 1.0000 | 0.0000 |
-| Rule-only | 0.7361 | 0.7533 | 0.7361 | 0.6529 | 1.0000 | 0.0000 |
-| Single-LLM / DeepSeek V4 Pro | 0.5694 | 0.4156 | 0.7361 | 0.3511 | 0.7286 | 0.1412 |
+| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct | Evidence Correctness | Hallucination Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Multi-Agent + Tools | 0.9028 | 0.9049 | 0.9028 | 0.9833 | 0.4545 | 1.0000 | 0.0000 |
+| Rule-only | 0.7361 | 0.7563 | 0.7361 | 0.9667 | 0.3956 | 1.0000 | 0.0000 |
+| Single-LLM / DeepSeek V4 Pro | 0.7500 | 0.6169 | 0.9028 | 0.8667 | 0.2645 | 0.6827 | 0.1331 |
 
-正式比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_1_seed42/`，包含 `comparison.csv`、`comparison.json` 和 `comparison.md`。生成命令：
+正式比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_2_seed42/`，包含 `comparison.csv`、`comparison.json` 和 `comparison.md`。生成命令：
 
 ```bash
 python experiments/compare_runs.py \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_1_noisy_rule_seed42 \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_1_noisy_single_llm_deepseek_v4_pro_seed42 \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_1_noisy_multi_agent_seed42 \
-  --output-dir /data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_1_seed42
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_2_noisy_rule_seed42 \
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_2_noisy_single_llm_deepseek_v4_pro_seed42 \
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_2_noisy_multi_agent_seed42 \
+  --output-dir /data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_2_seed42
 ```
 
-当前结果说明结构化模块诊断、可用性检查和 evidence 约束比单模型自由归因更稳定。Single-LLM 将全部 12 个 confidence-drop 判成 perception miss，并将 11/12 个 control-delay 判成 planning risk；这反映了异常传播与根因归属容易被混淆。该结论目前只适用于可控 synthetic benchmark，后续仍需固定 train/validation/test split，并用 CARLA/SafeBench 故障注入扩大外部有效性。
+v0.2 使用带车辆长宽/yaw 的矩形碰撞几何，修复了相邻车道被圆形包络误判为 planning risk 的问题。Multi-Agent 相比 v0.1 Accuracy 再提高 4.17 个百分点且没有新增回归。Single-LLM 的 control-delay 识别明显恢复，但仍将 11/12 个 confidence-drop 判成 perception miss，且 Evidence Correctness 只有 0.6827。该结论目前只适用于可控 synthetic benchmark，后续仍需 nuPlan 扰动、CARLA/SafeBench 和 held-out 多 seed 实验。
 
 ## 评估指标
 
@@ -371,6 +371,9 @@ python experiments/compare_runs.py \
 - Root Cause Top-1 Accuracy
 - Module-level Accuracy
 - Fault Start Time MAE
+- Fault Start Time Coverage
+- Fault Start Time MAE @ Correct Fault
+- Fault Start Time Coverage @ Correct Fault
 
 报告可信度：
 
