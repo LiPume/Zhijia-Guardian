@@ -45,6 +45,8 @@ def compute_ttc(
 
     for frame in scenario.frames:
         ego = frame.ego
+        heading_x = math.cos(ego.yaw)
+        heading_y = math.sin(ego.yaw)
         for actor in frame.actors_gt:
             dx = actor.x - ego.x
             dy = actor.y - ego.y
@@ -53,12 +55,15 @@ def compute_ttc(
                 min_distance = distance
                 min_distance_time = frame.timestamp
 
-            # Lightweight lane-aligned TTC for canonical demos and smoke tests.
-            if abs(dy) > max_lateral_offset or dx <= 0:
+            longitudinal_distance = dx * heading_x + dy * heading_y
+            lateral_offset = -dx * heading_y + dy * heading_x
+            if abs(lateral_offset) > max_lateral_offset or longitudinal_distance <= 0:
                 ttc = None
             else:
-                closing_speed = ego.vx - actor.vx
-                ttc = dx / closing_speed if closing_speed > 0.1 else None
+                ego_longitudinal_speed = ego.vx * heading_x + ego.vy * heading_y
+                actor_longitudinal_speed = actor.vx * heading_x + actor.vy * heading_y
+                closing_speed = ego_longitudinal_speed - actor_longitudinal_speed
+                ttc = longitudinal_distance / closing_speed if closing_speed > 0.1 else None
             points.append(TtcPoint(timestamp=frame.timestamp, actor_id=actor.actor_id, distance=distance, ttc=ttc))
             if ttc is not None and math.isfinite(ttc):
                 if min_ttc is None or ttc < min_ttc:
