@@ -25,7 +25,6 @@
 暂未完成的部分：
 
 - LangGraph 依赖化编排；当前先使用轻量 `diagnosis_graph.py` 保持无额外依赖。
-- Single-LLM 在完整 72 样本上的真实 API 实验与三方法结果表。
 - CARLA / SafeBench 全链路仿真接入。
 
 ## 项目边界
@@ -343,41 +342,25 @@ streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501
 
 ## 当前实验结果
 
-在 72 个 noisy manual 样本上，当前可复现实验结果为：
+三种方法已在完全相同的 72 个 noisy manual 场景、seed 42 和 commit `3691b8f` 上完成统一评估：
 
-Rule-only baseline：
+| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time MAE | Evidence Correctness | Hallucination Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Multi-Agent + Tools | 0.8611 | 0.8606 | 0.8611 | 0.4967 | 1.0000 | 0.0000 |
+| Rule-only | 0.7361 | 0.7533 | 0.7361 | 0.6529 | 1.0000 | 0.0000 |
+| Single-LLM / DeepSeek V4 Pro | 0.5694 | 0.4156 | 0.7361 | 0.3511 | 0.7286 | 0.1412 |
 
-```json
-{
-  "num_scenarios": 72,
-  "fault_accuracy": 0.7361,
-  "fault_macro_f1": 0.7533,
-  "root_top1_accuracy": 0.7361,
-  "module_level_accuracy": 0.7361,
-  "fault_start_time_mae": 0.6529,
-  "evidence_coverage": 1.0,
-  "evidence_correctness": 1.0,
-  "hallucination_rate": 0.0
-}
+正式比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_1_seed42/`，包含 `comparison.csv`、`comparison.json` 和 `comparison.md`。生成命令：
+
+```bash
+python experiments/compare_runs.py \
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_1_noisy_rule_seed42 \
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_1_noisy_single_llm_deepseek_v4_pro_seed42 \
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_1_noisy_multi_agent_seed42 \
+  --output-dir /data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_1_seed42
 ```
 
-Multi-Agent + Tools，LLM 关闭：
-
-```json
-{
-  "num_scenarios": 72,
-  "fault_accuracy": 0.8611,
-  "fault_macro_f1": 0.8606,
-  "root_top1_accuracy": 0.8611,
-  "module_level_accuracy": 0.8611,
-  "fault_start_time_mae": 0.4967,
-  "evidence_coverage": 1.0,
-  "evidence_correctness": 1.0,
-  "hallucination_rate": 0.0
-}
-```
-
-这组数值目前说明工程链路和初版主方法已经跑通，不能直接作为最终论文结论。后续需要固定 train / validation / test split，扩大 noisy manual 集合，并加入 Single-LLM baseline 对比。
+当前结果说明结构化模块诊断、可用性检查和 evidence 约束比单模型自由归因更稳定。Single-LLM 将全部 12 个 confidence-drop 判成 perception miss，并将 11/12 个 control-delay 判成 planning risk；这反映了异常传播与根因归属容易被混淆。该结论目前只适用于可控 synthetic benchmark，后续仍需固定 train/validation/test split，并用 CARLA/SafeBench 故障注入扩大外部有效性。
 
 ## 评估指标
 

@@ -3,7 +3,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from zhijia_guardian.workbench import list_runs, load_diagnosis, load_run, read_report, resolve_figure
+from zhijia_guardian.workbench import (
+    list_comparisons,
+    list_runs,
+    load_comparison,
+    load_diagnosis,
+    load_run,
+    read_report,
+    resolve_figure,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -55,3 +63,17 @@ def test_workbench_loads_run_artifacts(tmp_path):
 
     manifest = json.loads((bundle.run_dir / "artifacts_manifest.json").read_text(encoding="utf-8"))
     assert manifest["key_files"]["run_report"] == "run_report.md"
+
+
+def test_workbench_loads_comparison_package(tmp_path):
+    comparison = tmp_path / "comparisons" / "manual_v0_1_seed42"
+    comparison.mkdir(parents=True)
+    (comparison / "comparison.csv").write_text(
+        "macro_f1_rank,method,fault_macro_f1\n1,multi_agent_tools,0.86\n",
+        encoding="utf-8",
+    )
+    paths = list_comparisons(tmp_path / "comparisons")
+    assert paths == [comparison]
+    rows = load_comparison(comparison)
+    assert rows[0]["method"] == "multi_agent_tools"
+    assert rows[0]["fault_macro_f1"] == 0.86

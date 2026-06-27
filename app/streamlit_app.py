@@ -13,7 +13,9 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from zhijia_guardian.workbench import (  # noqa: E402
     DEFAULT_OUTPUT_ROOT,
+    list_comparisons,
     list_runs,
+    load_comparison,
     load_diagnosis,
     load_metrics,
     load_run,
@@ -53,9 +55,13 @@ def main() -> None:
     filtered_rows = _filter_rows(bundle.eval_rows, filters)
     scenario_id = _scenario_selector(filtered_rows, bundle.scenarios)
 
-    tab_run, tab_cases, tab_diagnosis, tab_artifacts = st.tabs(["Run", "Cases", "Diagnosis", "Artifacts"])
+    tab_run, tab_compare, tab_cases, tab_diagnosis, tab_artifacts = st.tabs(
+        ["Run", "Comparison", "Cases", "Diagnosis", "Artifacts"]
+    )
     with tab_run:
         _render_run_tab(bundle)
+    with tab_compare:
+        _render_comparison_tab(output_root.parent / "comparisons")
     with tab_cases:
         _render_cases_tab(filtered_rows, bundle.error_rows)
     with tab_diagnosis:
@@ -138,6 +144,37 @@ def _render_run_tab(bundle) -> None:
 
     st.subheader("Run Report")
     st.markdown(_safe_markdown(read_report(bundle.run_dir)))
+
+
+def _render_comparison_tab(comparison_root: Path) -> None:
+    comparison_paths = list_comparisons(comparison_root)
+    if not comparison_paths:
+        st.info(f"No comparison packages found under {comparison_root}")
+        return
+    names = [path.name for path in comparison_paths]
+    selected = st.selectbox("Comparison", names, index=0)
+    comparison_dir = comparison_paths[names.index(selected)]
+    rows = load_comparison(comparison_dir)
+    preferred = [
+        "macro_f1_rank",
+        "method",
+        "provider",
+        "model",
+        "fault_accuracy",
+        "fault_macro_f1",
+        "root_top1_accuracy",
+        "fault_start_time_mae",
+        "evidence_correctness",
+        "hallucination_rate",
+    ]
+    st.dataframe(
+        pd.DataFrame([{key: row.get(key) for key in preferred} for row in rows]),
+        use_container_width=True,
+        hide_index=True,
+    )
+    report_path = comparison_dir / "comparison.md"
+    if report_path.exists():
+        st.markdown(report_path.read_text(encoding="utf-8"))
 
 
 def _render_cases_tab(rows: list[dict[str, Any]], error_rows: list[dict[str, Any]]) -> None:

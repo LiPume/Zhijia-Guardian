@@ -22,6 +22,13 @@ For `single_llm` runs, `run_meta.json` also records non-secret LLM settings. Per
 response IDs and token usage. API keys and base URLs are never written to output artifacts.
 With `--resume`, existing per-scenario metrics and diagnoses are validated and reused before missing scenarios run.
 
+## Cross-Run Comparison
+
+`experiments/compare_runs.py` validates that all input runs contain the same scenario IDs, ranks methods by fault
+Macro-F1, and writes `comparison.csv`, `comparison.json`, and `comparison.md` under an explicit comparison output
+directory. The v0.1 package is stored at
+`/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_1_seed42/`.
+
 ## Directories
 
 | Directory | Contents |

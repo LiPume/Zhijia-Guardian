@@ -195,7 +195,7 @@ json_mode: true
 - [x] 能读取 1 个最小 demo 场景。
 - [x] 缺字段时报清楚错误。
 - [x] 能输出标准化内部 dict / Pydantic model。
-- [x] Rule-only 当前入口只接收 observed view；Single-LLM、Multi-Agent 后续沿用同一约束。
+- [x] Rule-only、Single-LLM、Multi-Agent 都只接收 observed view 或其派生 metrics；oracle 仅由 evaluator 读取。
 
 ## 4. P0.5：真实数据 Adapter Contract + Stub Adapters
 
@@ -462,10 +462,11 @@ parse_scenario
 
 当前 72 个 noisy manual 样本结果：
 
-| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time MAE | Evidence Coverage | Hallucination Rate |
+| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time MAE | Evidence Correctness | Hallucination Rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Rule-only | 0.7361 | 0.7533 | 0.7361 | 0.6529 | 1.0000 | 0.0000 |
 | Multi-Agent + Tools | 0.8611 | 0.8606 | 0.8611 | 0.4967 | 1.0000 | 0.0000 |
+| Rule-only | 0.7361 | 0.7533 | 0.7361 | 0.6529 | 1.0000 | 0.0000 |
+| Single-LLM / DeepSeek V4 Pro | 0.5694 | 0.4156 | 0.7361 | 0.3511 | 0.7286 | 0.1412 |
 
 ## 10. P2：Single-LLM baseline
 
@@ -484,7 +485,8 @@ parse_scenario
 
 验收标准：
 
-- [ ] 配置真实 API 后，在相同 72 样本上完成三方法结果对比。
+- [x] 已在相同 72 样本、seed 42、commit `3691b8f` 上完成三方法结果对比。
+- [x] 新增 `experiments/compare_runs.py`，输出 comparison CSV/JSON/Markdown 并校验场景集合一致。
 - [x] 能统计 hallucination rate；无效 evidence 引用已有自动测试。
 
 ## 11. P3：Streamlit 工作台
@@ -617,7 +619,7 @@ parse_scenario
 - [x] 至少 3 个高质量 Demo。
 - [x] 指标工具层。
 - [x] Rule-only baseline。
-- [x] Single-LLM baseline 代码、统一评估与防泄漏测试；真实 72 样本 API 结果仍待运行。
+- [x] Single-LLM baseline 代码、统一评估、防泄漏测试与真实 72 样本 DeepSeek API 结果。
 - [x] Multi-Agent + Tools 主方法。
 - [x] 实验结果 CSV。
 - [x] 混淆矩阵和对比表。
@@ -636,7 +638,7 @@ parse_scenario
 - [x] 在 `yolo` 环境下，一条命令能跑完整评估。
 - [x] 三个 demo 在 Streamlit 中可展示。
 - [x] 诊断报告中的每个结论都有 evidence。
-- [ ] Rule-only、Single-LLM、Multi-Agent + Tools 三组结果能对比。
+- [x] Rule-only、Single-LLM、Multi-Agent + Tools 三组结果能通过统一 comparison 包对比。
 - [x] 测试集有 Macro-F1、Root Cause Top-1、Time MAE、Evidence Coverage、Hallucination Rate。
 - [x] 大数据和输出都落在 `/data5/lzx_data/Zhijia-Guardian`。
 - [x] 通过 `tests/test_no_label_leakage.py`，证明诊断路径不能读取 `oracle`。

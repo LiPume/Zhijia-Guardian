@@ -8,6 +8,7 @@ from typing import Any
 
 
 DEFAULT_OUTPUT_ROOT = Path("/data5/lzx_data/Zhijia-Guardian/outputs/runs")
+DEFAULT_COMPARISON_ROOT = DEFAULT_OUTPUT_ROOT.parent / "comparisons"
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,18 @@ def list_runs(output_root: str | Path = DEFAULT_OUTPUT_ROOT) -> list[Path]:
         return []
     runs = [path for path in root.iterdir() if path.is_dir() and (path / "summary.json").exists()]
     return sorted(runs, key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def list_comparisons(comparison_root: str | Path = DEFAULT_COMPARISON_ROOT) -> list[Path]:
+    root = Path(comparison_root)
+    if not root.exists():
+        return []
+    comparisons = [path for path in root.iterdir() if path.is_dir() and (path / "comparison.csv").exists()]
+    return sorted(comparisons, key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def load_comparison(comparison_dir: str | Path) -> list[dict[str, Any]]:
+    return _load_csv(Path(comparison_dir) / "comparison.csv")
 
 
 def load_run(run_dir: str | Path) -> RunBundle:

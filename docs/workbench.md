@@ -22,6 +22,7 @@ Default output root:
 | View | Content |
 | --- | --- |
 | `Run` | Aggregate metrics, leaderboard, run metadata, confusion matrix, run report. |
+| `Comparison` | Cross-run method ranking loaded from validated packages under `outputs/comparisons/`. |
 | `Cases` | Filtered scenario table and error-case table. |
 | `Diagnosis` | BEV, evidence timeline, candidate root causes, agent trace, claims, evidence. |
 | `Artifacts` | Files included in the selected output package and manifest. |
@@ -36,6 +37,8 @@ The UI reads:
 - `diagnoses/*.json`
 - `metrics/*.json`
 - `figures/*.svg`
+- `../comparisons/*/comparison.csv`
+- `../comparisons/*/comparison.md`
 
 ## Boundary
 

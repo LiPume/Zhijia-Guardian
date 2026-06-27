@@ -25,7 +25,8 @@ the tool evidence while preventing rule labels from becoming answer hints.
 ## Output And Scoring
 
 The model returns a strict `SingleLLMOutput`, which is converted to the common `DiagnosisRecord` schema. Allowed
-fault labels and root modules are fixed, and inconsistent fault/root pairs are rejected by Pydantic.
+fault labels and root modules are fixed. Semantic inconsistencies between an allowed fault and root pair are
+preserved so the evaluator can count them instead of silently repairing model mistakes.
 
 The original deterministic evidence records are attached after the API call. LLM-generated evidence is never
 accepted. Claims may cite supplied IDs, omit citations, or invent IDs; the evaluator scores the result directly:
@@ -95,5 +96,32 @@ The first real 5-scenario smoke test completed with all API responses parsed and
 | Evidence Correctness | 0.6143 |
 | Hallucination Rate | 0.1467 |
 
-This smoke result validates the pipeline only; it is too small for a method-level conclusion. The 72-scenario run
-is the reportable comparison.
+This smoke result validates the pipeline only; it is too small for a method-level conclusion.
+
+## Full 72-Scenario Result
+
+The reportable run is `manual_v0_1_noisy_single_llm_deepseek_v4_pro_seed42` at commit `3691b8f`:
+
+| Metric | Value |
+| --- | ---: |
+| Fault Accuracy | 0.5694 |
+| Fault Macro-F1 | 0.4156 |
+| Root Top-1 Accuracy | 0.7361 |
+| Fault Start Time MAE | 0.3511 |
+| Evidence Coverage | 1.0000 |
+| Evidence Correctness | 0.7286 |
+| Hallucination Rate | 0.1412 |
+
+The 72 successful responses recorded 127,596 input tokens and 151,321 output tokens. Sixty-nine scenarios parsed
+on the first attempt and three required the configured second JSON attempt, for 75 API attempts in total. Token
+usage from the three discarded invalid first responses is not included. The complete run took about 29.2 minutes.
+
+The dominant confusions were systematic rather than random:
+
+- All 12 `perception_confidence_drop` scenarios were classified as `perception_miss`.
+- Eleven of 12 `control_delay` scenarios were classified as `planning_collision_risk`; one was `uncertain`.
+- Four normal boundary scenarios were classified as `planning_collision_risk`.
+
+This supports using the LLM as an optional report or evidence-organization layer, not as the sole root-cause
+classifier. It does not establish real-road generalization because the benchmark is still generated from the
+canonical manual simulator.
