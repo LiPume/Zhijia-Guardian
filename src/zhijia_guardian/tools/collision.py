@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from zhijia_guardian.schemas.diagnosis import EvidenceRecord
 from zhijia_guardian.schemas.scenario import ScenarioRecord
 from zhijia_guardian.tools.evidence import EvidenceFactory
-from zhijia_guardian.utils.geometry import point_to_actor_margin
+from zhijia_guardian.utils.geometry import oriented_box_margin
 
 
 class CollisionResult(BaseModel):
@@ -29,13 +29,17 @@ def detect_collisions(
 
     for frame in scenario.frames:
         for actor in frame.actors_gt:
-            margin = point_to_actor_margin(
+            margin = oriented_box_margin(
                 frame.ego.x,
                 frame.ego.y,
+                frame.ego.yaw,
                 actor.x,
                 actor.y,
+                actor.yaw,
                 actor.length,
                 actor.width,
+                frame.ego.length,
+                frame.ego.width,
             )
             if min_margin is None or margin < min_margin:
                 min_margin = margin

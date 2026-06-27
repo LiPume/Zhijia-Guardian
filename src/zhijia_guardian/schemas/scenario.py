@@ -92,6 +92,8 @@ class EgoState(StrictModel):
     vy: float = 0.0
     ax: float = 0.0
     ay: float = 0.0
+    length: float = Field(default=4.8, gt=0.0)
+    width: float = Field(default=1.9, gt=0.0)
     lane_id: str | None = None
 
 

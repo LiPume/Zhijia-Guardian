@@ -63,6 +63,17 @@ Each `metrics/{scenario_id}.json` may contain:
 Comfort evidence is auxiliary. It is shown for review and timeline context, but it does not directly support a
 fault label in the first rule-based MVP.
 
+## Fault-Time Metrics
+
+Run summaries report both localization error and prediction coverage:
+
+- `fault_start_time_mae`: legacy MAE over fault scenarios with any predicted time, including wrong fault labels.
+- `fault_start_time_coverage`: fraction of oracle fault scenarios with a predicted time.
+- `fault_start_time_mae_at_correct_fault`: MAE restricted to correctly classified fault scenarios.
+- `fault_start_time_coverage_at_correct_fault`: time coverage among correctly classified fault scenarios.
+
+The conditional MAE must be read together with its coverage; a method cannot improve by omitting difficult times.
+
 ## Run Report
 
 `run_report.md` is the first file to open for demos and reviews. It contains:

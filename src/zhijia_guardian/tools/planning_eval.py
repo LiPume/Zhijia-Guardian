@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from zhijia_guardian.schemas.diagnosis import EvidenceRecord
 from zhijia_guardian.schemas.scenario import ScenarioRecord, TrajectorySource
 from zhijia_guardian.tools.evidence import EvidenceFactory
-from zhijia_guardian.utils.geometry import point_to_actor_margin
+from zhijia_guardian.utils.geometry import oriented_box_margin
 
 
 class PlanningEvalResult(BaseModel):
@@ -46,7 +46,18 @@ def evaluate_planning(
             for actor in frame.actors_gt:
                 actor_x = actor.x + actor.vx * point.dt
                 actor_y = actor.y + actor.vy * point.dt
-                margin = point_to_actor_margin(point.x, point.y, actor_x, actor_y, actor.length, actor.width)
+                margin = oriented_box_margin(
+                    point.x,
+                    point.y,
+                    point.yaw if point.yaw is not None else frame.ego.yaw,
+                    actor_x,
+                    actor_y,
+                    actor.yaw,
+                    actor.length,
+                    actor.width,
+                    frame.ego.length,
+                    frame.ego.width,
+                )
                 if min_margin is None or margin < min_margin:
                     min_margin = margin
                     min_margin_time = frame.timestamp
@@ -60,7 +71,7 @@ def evaluate_planning(
                 "PLAN",
                 "trajectory_collision_count",
                 collision_count,
-                collision_margin,
+                0.0,
                 min_margin_time,
                 "violation",
                 supports=["planning_collision_risk"],

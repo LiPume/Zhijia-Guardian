@@ -13,6 +13,9 @@ METRICS = [
     "fault_macro_f1",
     "root_top1_accuracy",
     "fault_start_time_mae",
+    "fault_start_time_coverage",
+    "fault_start_time_mae_at_correct_fault",
+    "fault_start_time_coverage_at_correct_fault",
     "evidence_coverage",
     "evidence_correctness",
     "hallucination_rate",
@@ -67,11 +70,13 @@ def _load_run(run_dir: Path) -> dict[str, Any]:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     with eval_path.open(encoding="utf-8", newline="") as handle:
-        scenario_ids = {row["scenario_id"] for row in csv.DictReader(handle)}
+        eval_rows = list(csv.DictReader(handle))
+    scenario_ids = {row["scenario_id"] for row in eval_rows}
     if len(scenario_ids) != int(summary["num_scenarios"]):
         raise ValueError(f"Scenario count mismatch inside {run_dir}")
 
     llm = meta.get("llm", {})
+    derived_time_metrics = _derive_time_metrics(eval_rows)
     return {
         "run_id": meta["run_id"],
         "method": meta["method"],
@@ -80,8 +85,34 @@ def _load_run(run_dir: Path) -> dict[str, Any]:
         "dataset": meta["dataset"],
         "seed": meta["seed"],
         "git_commit": meta["git_commit"],
-        **{metric: summary[metric] for metric in METRICS},
+        **{
+            metric: summary.get(metric, derived_time_metrics.get(metric, 0.0))
+            for metric in METRICS
+        },
         "scenario_ids": scenario_ids,
+    }
+
+
+def _derive_time_metrics(rows: list[dict[str, str]]) -> dict[str, float]:
+    eligible = [row for row in rows if row.get("true_fault_start_time") not in {None, ""}]
+    covered = [row for row in eligible if row.get("pred_fault_start_time") not in {None, ""}]
+    correct_eligible = [row for row in eligible if row.get("fault_correct") == "True"]
+    correct_covered = [
+        row for row in correct_eligible if row.get("pred_fault_start_time") not in {None, ""}
+    ]
+    correct_errors = [
+        float(row["time_abs_error"])
+        for row in correct_covered
+        if row.get("time_abs_error") not in {None, ""}
+    ]
+    return {
+        "fault_start_time_coverage": len(covered) / len(eligible) if eligible else 0.0,
+        "fault_start_time_mae_at_correct_fault": (
+            sum(correct_errors) / len(correct_errors) if correct_errors else 0.0
+        ),
+        "fault_start_time_coverage_at_correct_fault": (
+            len(correct_covered) / len(correct_eligible) if correct_eligible else 0.0
+        ),
     }
 
 
@@ -116,15 +147,16 @@ def _render_markdown(payload: dict[str, Any]) -> str:
         f"- Ranking metric: `{payload['ranking_metric']}`",
         f"- Comparison commit: `{payload['comparison_git_commit']}`",
         "",
-        "| Rank | Method | Model | Accuracy | Macro-F1 | Root Top-1 | Time MAE | Evidence Correctness | Hallucination Rate |",
-        "| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Rank | Method | Model | Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct | Evidence Correctness | Hallucination Rate |",
+        "| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for record in payload["runs"]:
         model = record["model"] or "-"
         lines.append(
             f"| {record['macro_f1_rank']} | `{record['method']}` | `{model}` | "
             f"{record['fault_accuracy']:.4f} | {record['fault_macro_f1']:.4f} | "
-            f"{record['root_top1_accuracy']:.4f} | {record['fault_start_time_mae']:.4f} | "
+            f"{record['root_top1_accuracy']:.4f} | {record['fault_start_time_coverage']:.4f} | "
+            f"{record['fault_start_time_mae_at_correct_fault']:.4f} | "
             f"{record['evidence_correctness']:.4f} | {record['hallucination_rate']:.4f} |"
         )
     lines.extend(["", "## Runs", ""])

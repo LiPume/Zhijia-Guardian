@@ -173,6 +173,8 @@ Canonical Scenario JSON 顶层结构：
     "vx": 10.0,
     "vy": 0.0,
     "ax": -0.2,
+    "length": 4.8,
+    "width": 1.9,
     "lane_id": "lane_01"
   },
   "actors_gt": [],

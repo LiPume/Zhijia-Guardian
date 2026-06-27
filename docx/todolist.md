@@ -336,6 +336,7 @@ nuPlan smoke test 要求：
 - [x] TTC 曲线、min TTC、TTC violation 起止时间。
 - [x] ego 与目标最小距离。
 - [x] 规划轨迹与障碍物 bbox/轨迹碰撞检测。
+- [x] 车辆碰撞几何使用带长宽/yaw 的矩形间距，不再用会误伤相邻车道的圆形包络近似。
 - [x] 感知漏检检测：GT 存在但 perception 缺失。
 - [x] 感知误检检测：perception 存在但 GT 不存在。
 - [x] 类别混淆检测：GT 类别与 detection 类别不一致。
@@ -394,6 +395,9 @@ Evidence 格式：
 - [x] Root Cause Top-1 Accuracy。
 - [x] Module-level Accuracy。
 - [x] Fault Start Time MAE。
+- [x] Fault Start Time Coverage。
+- [x] Fault Start Time MAE @ Correct Fault。
+- [x] Fault Start Time Coverage @ Correct Fault。
 - [x] Evidence Coverage。
 - [x] Evidence Correctness。
 - [x] Hallucination Rate。
@@ -459,6 +463,7 @@ parse_scenario
 - [x] Agent 每一步结果可以在 Streamlit 中展示。
 - [x] 报告中每个结论能反查到 metrics evidence。
 - [x] 每个 claim 都有 `claim_id` 和 `evidence_ids`。
+- [x] Planning Agent 相邻车道误报回归已覆盖：control-delay/normal 不再被轨迹圆形包络误判为 planning risk。
 
 当前 72 个 noisy manual 样本结果：
 

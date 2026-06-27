@@ -19,7 +19,11 @@ class EvalRow:
     pred_fault_start_time: float | None
     fault_correct: bool
     root_correct: bool
+    fault_time_eligible: bool
+    fault_time_predicted: bool
+    fault_time_covered: bool
     time_abs_error: float | None
+    time_abs_error_at_correct_fault: float | None
     evidence_coverage: float
     evidence_correctness: float
     hallucination_rate: float
@@ -35,6 +39,8 @@ def evaluate_one(record: ScenarioRecord, diagnosis: DiagnosisRecord) -> EvalRow:
     time_error = None
     if true_time is not None and diagnosis.predicted_fault_start_time is not None:
         time_error = abs(diagnosis.predicted_fault_start_time - true_time)
+    fault_correct = true_fault == pred_fault
+    time_error_at_correct_fault = time_error if fault_correct else None
 
     coverage, correctness, hallucination = evidence_quality(diagnosis)
     return EvalRow(
@@ -45,9 +51,13 @@ def evaluate_one(record: ScenarioRecord, diagnosis: DiagnosisRecord) -> EvalRow:
         pred_root_module=pred_root,
         true_fault_start_time=true_time,
         pred_fault_start_time=diagnosis.predicted_fault_start_time,
-        fault_correct=true_fault == pred_fault,
+        fault_correct=fault_correct,
         root_correct=true_root == pred_root,
+        fault_time_eligible=true_time is not None,
+        fault_time_predicted=diagnosis.predicted_fault_start_time is not None,
+        fault_time_covered=true_time is not None and diagnosis.predicted_fault_start_time is not None,
         time_abs_error=time_error,
+        time_abs_error_at_correct_fault=time_error_at_correct_fault,
         evidence_coverage=coverage,
         evidence_correctness=correctness,
         hallucination_rate=hallucination,
@@ -57,6 +67,13 @@ def evaluate_one(record: ScenarioRecord, diagnosis: DiagnosisRecord) -> EvalRow:
 def summarize(rows: list[EvalRow]) -> dict[str, float | int]:
     labels = sorted(set([row.true_fault_type for row in rows] + [row.pred_fault_type for row in rows]))
     time_errors = [row.time_abs_error for row in rows if row.time_abs_error is not None]
+    correct_fault_time_errors = [
+        row.time_abs_error_at_correct_fault
+        for row in rows
+        if row.time_abs_error_at_correct_fault is not None
+    ]
+    time_eligible = [row for row in rows if row.fault_time_eligible]
+    correct_fault_time_eligible = [row for row in time_eligible if row.fault_correct]
     return {
         "num_scenarios": len(rows),
         "fault_accuracy": mean([row.fault_correct for row in rows]) if rows else 0.0,
@@ -64,10 +81,25 @@ def summarize(rows: list[EvalRow]) -> dict[str, float | int]:
         "root_top1_accuracy": mean([row.root_correct for row in rows]) if rows else 0.0,
         "module_level_accuracy": mean([row.root_correct for row in rows]) if rows else 0.0,
         "fault_start_time_mae": mean(time_errors) if time_errors else 0.0,
+        "fault_start_time_coverage": _ratio(
+            sum(row.fault_time_covered for row in time_eligible),
+            len(time_eligible),
+        ),
+        "fault_start_time_mae_at_correct_fault": (
+            mean(correct_fault_time_errors) if correct_fault_time_errors else 0.0
+        ),
+        "fault_start_time_coverage_at_correct_fault": _ratio(
+            sum(row.fault_time_covered for row in correct_fault_time_eligible),
+            len(correct_fault_time_eligible),
+        ),
         "evidence_coverage": mean([row.evidence_coverage for row in rows]) if rows else 0.0,
         "evidence_correctness": mean([row.evidence_correctness for row in rows]) if rows else 0.0,
         "hallucination_rate": mean([row.hallucination_rate for row in rows]) if rows else 0.0,
     }
+
+
+def _ratio(numerator: int, denominator: int) -> float:
+    return numerator / denominator if denominator else 0.0
 
 
 def macro_f1(rows: list[EvalRow], labels: list[str]) -> float:

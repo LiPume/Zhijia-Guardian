@@ -30,3 +30,12 @@ class BaseAdapter:
 - `planning.trajectory_source`: `expert_future`、`offline_planner`、`perturbed_planner`、`model_prediction`、`unavailable`
 
 只有 `offline_planner`、`perturbed_planner`、`model_prediction` 可以用于诊断 planner 输出。`expert_future` 只能作为参考轨迹。
+
+## Vehicle Geometry
+
+- `frames[*].ego.length` and `frames[*].ego.width` are required by the canonical model through validated defaults
+  of 4.8 m and 1.9 m when the source does not provide an ego bounding box.
+- Adapters with source bounding boxes, especially CARLA, must map the measured dimensions instead of relying on
+  defaults.
+- Actor and ego yaw use radians. Planning and collision tools compute oriented rectangle separation so adjacent
+  lanes are not treated as overlapping circular footprints.
