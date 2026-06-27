@@ -20,8 +20,14 @@ Environment variables:
   CLEAN                  Clean dataset directory during generation. Default: 1
   RUN_RULE_ONLY          Run rule-only baseline. Default: 1
   RUN_MULTI_AGENT        Run multi-agent tools method. Default: 1
+  RUN_SINGLE_LLM         Run the API-backed Single-LLM baseline. Default: 0
   RULE_RUN_ID            Rule-only run id. Default: manual_v0_1_noisy_rule_seed${SEED}
   MULTI_RUN_ID           Multi-agent run id. Default: manual_v0_1_noisy_multi_agent_seed${SEED}
+  SINGLE_LLM_RUN_ID      Single-LLM run id. Default: manual_v0_1_noisy_single_llm_seed${SEED}
+  SINGLE_LLM_LIMIT       Limit API calls to the first N scenarios; 0 means all. Default: 0
+  LLM_CONFIG             LLM config path. Default: configs/llm.yaml
+  OPENAI_API_KEY         Required only when RUN_SINGLE_LLM=1
+  OPENAI_BASE_URL        Optional OpenAI-compatible API base URL
 EOF
   exit 0
 fi
@@ -47,8 +53,12 @@ GENERATE="${GENERATE:-1}"
 CLEAN="${CLEAN:-1}"
 RUN_RULE_ONLY="${RUN_RULE_ONLY:-1}"
 RUN_MULTI_AGENT="${RUN_MULTI_AGENT:-1}"
+RUN_SINGLE_LLM="${RUN_SINGLE_LLM:-0}"
 RULE_RUN_ID="${RULE_RUN_ID:-manual_v0_1_noisy_rule_seed${SEED}}"
 MULTI_RUN_ID="${MULTI_RUN_ID:-manual_v0_1_noisy_multi_agent_seed${SEED}}"
+SINGLE_LLM_RUN_ID="${SINGLE_LLM_RUN_ID:-manual_v0_1_noisy_single_llm_seed${SEED}}"
+SINGLE_LLM_LIMIT="${SINGLE_LLM_LIMIT:-0}"
+LLM_CONFIG="${LLM_CONFIG:-configs/llm.yaml}"
 
 mkdir -p "$OUTPUT_ROOT"
 
@@ -90,10 +100,30 @@ if [[ "$RUN_MULTI_AGENT" == "1" ]]; then
     --seed "$SEED"
 fi
 
+if [[ "$RUN_SINGLE_LLM" == "1" ]]; then
+  limit_arg=()
+  if [[ "$SINGLE_LLM_LIMIT" != "0" ]]; then
+    limit_arg=(--limit "$SINGLE_LLM_LIMIT")
+  fi
+  echo "[backend] running Single-LLM baseline..."
+  "$PYTHON" experiments/run_eval.py \
+    --method single_llm \
+    --dataset "$DATASET" \
+    --run-id "$SINGLE_LLM_RUN_ID" \
+    --output-root "$OUTPUT_ROOT" \
+    --seed "$SEED" \
+    --llm-config "$LLM_CONFIG" \
+    --enable-llm \
+    "${limit_arg[@]}"
+fi
+
 echo "[backend] done"
 if [[ "$RUN_RULE_ONLY" == "1" ]]; then
   echo "[backend] rule report:  $OUTPUT_ROOT/$RULE_RUN_ID/run_report.md"
 fi
 if [[ "$RUN_MULTI_AGENT" == "1" ]]; then
   echo "[backend] multi report: $OUTPUT_ROOT/$MULTI_RUN_ID/run_report.md"
+fi
+if [[ "$RUN_SINGLE_LLM" == "1" ]]; then
+  echo "[backend] LLM report:   $OUTPUT_ROOT/$SINGLE_LLM_RUN_ID/run_report.md"
 fi

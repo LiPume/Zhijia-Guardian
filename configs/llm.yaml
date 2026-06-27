@@ -1,5 +1,10 @@
 enabled: false
 provider: openai
 model: gpt-4o-mini
+endpoint: responses
 temperature: 0
 json_mode: true
+timeout_seconds: 60
+max_retries: 2
+api_key_env: OPENAI_API_KEY
+base_url_env: OPENAI_BASE_URL

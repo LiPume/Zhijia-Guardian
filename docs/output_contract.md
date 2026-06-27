@@ -18,6 +18,9 @@ Each experiment writes a reproducible run package under:
 | `confusion_matrix.json` | Sparse confusion matrix counts. |
 | `run_meta.json` | Reproducibility metadata: method, dataset, seed, configs, git commit. |
 
+For `single_llm` runs, `run_meta.json` also records non-secret LLM settings. Per-scenario agent traces may record
+response IDs and token usage. API keys and base URLs are never written to output artifacts.
+
 ## Directories
 
 | Directory | Contents |

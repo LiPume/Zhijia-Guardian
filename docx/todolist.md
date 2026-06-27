@@ -1,6 +1,6 @@
 # 智驾卫士实现计划与 Todo
 
-更新时间：2026-06-26
+更新时间：2026-06-27
 
 本 Todo 以 `/home/lzx/Zhijia-Guardian/docx/design.md` 的“0. 最终落地修订版”为准。
 
@@ -46,7 +46,7 @@ conda activate yolo
 pip install -e ".[dev]"
 ```
 
-说明：当前已验证 `torch`、`cv2`、`pydantic`、`yaml`、`pytest` 可导入。`shapely`、`plotly`、`streamlit`、`langgraph`、`openai`、`scikit-learn` 暂不作为 P0 强依赖，等对应模块开工时再装，避免环境过重。
+说明：当前已验证 `torch`、`cv2`、`pydantic`、`yaml`、`pytest` 可导入。`openai` 已作为 `llm` 可选依赖加入，不会重复安装 PyTorch；`shapely`、`plotly`、`langgraph`、`scikit-learn` 仍不作为 P0 强依赖。
 
 - [x] 创建数据根目录：
 
@@ -469,16 +469,19 @@ parse_scenario
 
 ## 10. P2：Single-LLM baseline
 
-- [ ] 实现 `experiments/baselines/single_llm.py`。
-- [ ] 输入为场景摘要 + 指标摘要。
-- [ ] 输入只能来自 observed view 和 metrics，不能包含 `oracle`。
-- [ ] 输出同样的 `diagnosis.json` 格式。
-- [ ] 与 Rule-only、Multi-Agent + Tools 统一评估。
+- [x] 实现 `src/zhijia_guardian/baselines/single_llm.py`，CLI 保留在 `experiments/run_eval.py`。
+- [x] 输入为场景摘要 + 指标摘要。
+- [x] 输入只能来自 observed view 和 metrics，不能包含 `oracle`。
+- [x] API 输入删除 metrics 的 `supports`、`contradicts` 和自由文本描述，避免规则标签提示答案。
+- [x] 输出同样的 `diagnosis.json` 格式。
+- [x] 与 Rule-only、Multi-Agent + Tools 统一评估。
+- [x] 默认关闭 LLM，CLI 必须显式传 `--enable-llm`；测试使用注入式假客户端，不伪造真实 API 实验结果。
+- [x] API key 只从 `OPENAI_API_KEY` 读取，兼容服务可通过 `OPENAI_BASE_URL` 配置，不落盘、不进 Git。
 
 验收标准：
 
-- [ ] 能比较 Single-LLM 是否更容易漏证据或产生幻觉。
-- [ ] 能统计 hallucination rate。
+- [ ] 配置真实 API 后，在相同 72 样本上完成三方法结果对比。
+- [x] 能统计 hallucination rate；无效 evidence 引用已有自动测试。
 
 ## 11. P3：Streamlit 工作台
 
@@ -610,7 +613,7 @@ parse_scenario
 - [x] 至少 3 个高质量 Demo。
 - [x] 指标工具层。
 - [x] Rule-only baseline。
-- [ ] Single-LLM baseline。
+- [x] Single-LLM baseline 代码、统一评估与防泄漏测试；真实 72 样本 API 结果仍待运行。
 - [x] Multi-Agent + Tools 主方法。
 - [x] 实验结果 CSV。
 - [x] 混淆矩阵和对比表。
@@ -668,6 +671,15 @@ python experiments/run_eval.py \
   --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_1 \
   --run-id 20260625_v0_1_multi_agent \
   --seed 42
+
+export OPENAI_API_KEY='your-api-key'
+python experiments/run_eval.py \
+  --method single_llm \
+  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_1 \
+  --run-id 20260627_v0_1_single_llm \
+  --seed 42 \
+  --enable-llm \
+  --limit 5
 
 streamlit run app/streamlit_app.py
 ```

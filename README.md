@@ -15,6 +15,7 @@
 - 真实数据兼容的 noisy manual 场景生成脚本。
 - TTC、碰撞、感知异常、规划风险、控制延迟等指标工具。
 - Rule-only baseline 和评估入口。
+- Single-LLM baseline，使用去标签化的场景/指标摘要、结构化输出和 evidence 引用校验；默认关闭 API 调用。
 - Multi-Agent + Tools 纯规则诊断链路，包含 metric、scene、perception、planning、control、root cause、report agent。
 - `run_id` 级实验输出目录，包含 `run_report.md`、`figures/`、`tables/`、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
 - failure sample package，包含 `failure_samples.jsonl`、`tables/failure_samples.csv` 和 `failure_samples/{scenario_id}/failure_sample.json`。
@@ -24,7 +25,7 @@
 暂未完成的部分：
 
 - LangGraph 依赖化编排；当前先使用轻量 `diagnosis_graph.py` 保持无额外依赖。
-- Single-LLM baseline。
+- Single-LLM 在完整 72 样本上的真实 API 实验与三方法结果表。
 - CARLA / SafeBench 全链路仿真接入。
 
 ## 项目边界
@@ -228,6 +229,12 @@ conda activate yolo
 pip install -e ".[dev]"
 ```
 
+需要运行 Single-LLM 时再安装小型可选依赖，不会重复安装 PyTorch：
+
+```bash
+pip install -e ".[dev,llm]"
+```
+
 最短启动方式：
 
 ```bash
@@ -235,7 +242,7 @@ pip install -e ".[dev]"
 ./frontend.sh
 ```
 
-其中 `backend.sh` 会生成/刷新手工样本并跑 rule-only、Multi-Agent + Tools 两组输出；`frontend.sh` 会启动只读 Streamlit 工作台。
+其中 `backend.sh` 默认生成/刷新手工样本并跑 rule-only、Multi-Agent + Tools 两组输出；`frontend.sh` 会启动只读 Streamlit 工作台。Single-LLM 默认不运行，避免意外产生 API 费用。
 
 生成 6 个 canonical demo：
 
@@ -278,6 +285,29 @@ python experiments/run_eval.py \
   --run-id manual_v0_1_noisy_multi_agent_seed42 \
   --seed 42
 ```
+
+运行 Single-LLM 前，在本机 shell 配置密钥。不要把密钥写入 YAML 或提交到 Git：
+
+```bash
+export OPENAI_API_KEY='your-api-key'
+# 使用兼容服务时可选：export OPENAI_BASE_URL='https://example.com/v1'
+
+python experiments/run_eval.py \
+  --method single_llm \
+  --dataset data/sample_scenarios/manual_json/v0_1 \
+  --run-id manual_v0_1_noisy_single_llm_seed42 \
+  --seed 42 \
+  --enable-llm \
+  --limit 5
+```
+
+也可以通过启动脚本做 5 样本连通性验证：
+
+```bash
+RUN_SINGLE_LLM=1 SINGLE_LLM_LIMIT=5 ./backend.sh
+```
+
+Single-LLM 只接收 `observed_view()` 派生的聚合摘要，以及去掉 `supports`、`contradicts` 和自由文本描述后的 metrics。模型输出中的每条 claim 必须引用 `evidence_id`；不存在或不支持结论的引用会计入 hallucination rate。完整设计见 [docs/single_llm_baseline.md](docs/single_llm_baseline.md)。
 
 运行测试：
 

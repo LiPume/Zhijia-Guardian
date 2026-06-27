@@ -20,6 +20,9 @@ app = [
   "pandas>=2",
   "streamlit>=1.36",
 ]
+llm = [
+  "openai>=1.68,<3",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
