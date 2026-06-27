@@ -47,3 +47,18 @@ canonical/scenarios.jsonl            # adapter 合并后的 ScenarioRecord
 每帧必须包含 `frame_id`、`simulation_time`、ego transform/velocity/acceleration/bounding box。
 actors、perception、planning、control、map 和 events 均按可用性显式记录。Pydantic 使用
 `extra=forbid` 校验，运行时字段变化必须升级日志版本或同步修改 adapter，避免静默读错数据。
+
+## 第一版生成方式
+
+`scripts/record_carla_base_scenarios.py` 在 CARLA 同步模式下生成跟随静止前车的基础日志：
+
+- ego 与关键前车状态、VehicleControl、地图 waypoint 来自真实 CARLA API；
+- collision/lane-invasion 来自 CARLA sensor callback；
+- perception 是在 simulation annotation 上加入小位置噪声的合成检测，来源显式标为
+  `synthetic_from_annotation`；
+- planning 是沿当前车道生成的安全停车 rollout，来源标为 `offline_planner`，不是神经网络 planner；
+- 基础场景在低 TTC 时及时制动，供 control-delay 版本保持相同场景骨架做信号级注入。
+
+随后用 `scripts/generate_carla_fault_benchmark.py` 从每个基础日志派生六个成对版本。当前
+`injection_scope=offline_signal_level`，即修改感知/规划/控制日志信号，不宣称已经重跑故障后的
+车辆动力学。闭环动力学故障注入是下一阶段增强项。
