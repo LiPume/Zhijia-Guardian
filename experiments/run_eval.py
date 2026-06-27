@@ -22,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--llm-config", default="configs/llm.yaml")
     parser.add_argument("--enable-llm", action="store_true", help="Acknowledge that the run may call a paid API.")
     parser.add_argument("--limit", type=int, help="Evaluate only the first N scenarios.")
+    parser.add_argument("--resume", action="store_true", help="Reuse completed per-scenario outputs in the run.")
     return parser.parse_args()
 
 
@@ -36,6 +37,7 @@ def main() -> None:
         llm_config_path=args.llm_config,
         enable_llm=args.enable_llm,
         limit=args.limit,
+        resume=args.resume,
     )
     print(f"Run complete: {run_dir}")
 

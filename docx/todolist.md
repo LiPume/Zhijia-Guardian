@@ -476,7 +476,11 @@ parse_scenario
 - [x] 输出同样的 `diagnosis.json` 格式。
 - [x] 与 Rule-only、Multi-Agent + Tools 统一评估。
 - [x] 默认关闭 LLM，CLI 必须显式传 `--enable-llm`；测试使用注入式假客户端，不伪造真实 API 实验结果。
-- [x] API key 只从 `OPENAI_API_KEY` 读取，兼容服务可通过 `OPENAI_BASE_URL` 配置，不落盘、不进 Git。
+- [x] API key 只从配置指定的环境变量读取；OpenAI 使用 `OPENAI_API_KEY`，DeepSeek 使用 `DEEPSEEK_API_KEY`，均不落盘到实验输出、不进 Git。
+- [x] 新增 `configs/llm_deepseek.yaml`，支持 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`。
+- [x] DeepSeek 使用 Chat Completions `json_object`，本地 Pydantic 校验，不伪装成 OpenAI Responses 原生 schema。
+- [x] API 实验支持 `--resume`，逐场景复用已完成输出，避免中断后重复计费。
+- [x] DeepSeek 真实 5 样本 smoke test 已完成：Accuracy 0.4000、Root Top-1 0.6000、Hallucination Rate 0.1467。
 
 验收标准：
 

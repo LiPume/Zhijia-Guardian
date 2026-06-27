@@ -25,6 +25,7 @@ Environment variables:
   MULTI_RUN_ID           Multi-agent run id. Default: manual_v0_1_noisy_multi_agent_seed${SEED}
   SINGLE_LLM_RUN_ID      Single-LLM run id. Default: manual_v0_1_noisy_single_llm_seed${SEED}
   SINGLE_LLM_LIMIT       Limit API calls to the first N scenarios; 0 means all. Default: 0
+  SINGLE_LLM_RESUME      Reuse completed Single-LLM scenario outputs. Default: 1
   LLM_CONFIG             LLM config path. Default: configs/llm.yaml
   OPENAI_API_KEY         Required only when RUN_SINGLE_LLM=1
   OPENAI_BASE_URL        Optional OpenAI-compatible API base URL
@@ -58,6 +59,7 @@ RULE_RUN_ID="${RULE_RUN_ID:-manual_v0_1_noisy_rule_seed${SEED}}"
 MULTI_RUN_ID="${MULTI_RUN_ID:-manual_v0_1_noisy_multi_agent_seed${SEED}}"
 SINGLE_LLM_RUN_ID="${SINGLE_LLM_RUN_ID:-manual_v0_1_noisy_single_llm_seed${SEED}}"
 SINGLE_LLM_LIMIT="${SINGLE_LLM_LIMIT:-0}"
+SINGLE_LLM_RESUME="${SINGLE_LLM_RESUME:-1}"
 LLM_CONFIG="${LLM_CONFIG:-configs/llm.yaml}"
 
 mkdir -p "$OUTPUT_ROOT"
@@ -105,6 +107,10 @@ if [[ "$RUN_SINGLE_LLM" == "1" ]]; then
   if [[ "$SINGLE_LLM_LIMIT" != "0" ]]; then
     limit_arg=(--limit "$SINGLE_LLM_LIMIT")
   fi
+  resume_arg=()
+  if [[ "$SINGLE_LLM_RESUME" == "1" ]]; then
+    resume_arg=(--resume)
+  fi
   echo "[backend] running Single-LLM baseline..."
   "$PYTHON" experiments/run_eval.py \
     --method single_llm \
@@ -114,7 +120,8 @@ if [[ "$RUN_SINGLE_LLM" == "1" ]]; then
     --seed "$SEED" \
     --llm-config "$LLM_CONFIG" \
     --enable-llm \
-    "${limit_arg[@]}"
+    "${limit_arg[@]}" \
+    "${resume_arg[@]}"
 fi
 
 echo "[backend] done"

@@ -20,6 +20,7 @@ Each experiment writes a reproducible run package under:
 
 For `single_llm` runs, `run_meta.json` also records non-secret LLM settings. Per-scenario agent traces may record
 response IDs and token usage. API keys and base URLs are never written to output artifacts.
+With `--resume`, existing per-scenario metrics and diagnoses are validated and reused before missing scenarios run.
 
 ## Directories
 

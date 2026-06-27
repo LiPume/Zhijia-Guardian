@@ -307,6 +307,26 @@ python experiments/run_eval.py \
 RUN_SINGLE_LLM=1 SINGLE_LLM_LIMIT=5 ./backend.sh
 ```
 
+当前仓库也提供 DeepSeek 官方 OpenAI-compatible 接口配置。项目根目录 `.env` 已被 Git 忽略：
+
+```dotenv
+DEEPSEEK_API_KEY='your-api-key'
+DEEPSEEK_BASE_URL='https://api.deepseek.com'
+DEEPSEEK_MODEL=deepseek-v4-pro
+```
+
+```bash
+python experiments/run_eval.py \
+  --method single_llm \
+  --dataset data/sample_scenarios/manual_json/v0_1 \
+  --run-id manual_v0_1_single_llm_deepseek_seed42 \
+  --llm-config configs/llm_deepseek.yaml \
+  --enable-llm \
+  --resume
+```
+
+DeepSeek 使用 Chat Completions `json_object`，返回值再由本地 Pydantic 严格校验。`--resume` 会复用 run 目录中已经完成的逐场景 metrics/diagnosis，避免 API 中断后重复调用和计费。通过启动脚本运行时设置 `LLM_CONFIG=configs/llm_deepseek.yaml`。
+
 Single-LLM 只接收 `observed_view()` 派生的聚合摘要，以及去掉 `supports`、`contradicts` 和自由文本描述后的 metrics。模型输出中的每条 claim 必须引用 `evidence_id`；不存在或不支持结论的引用会计入 hallucination rate。完整设计见 [docs/single_llm_baseline.md](docs/single_llm_baseline.md)。
 
 运行测试：

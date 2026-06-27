@@ -58,6 +58,7 @@ def run_single_llm_eval(
     enable_llm: bool = False,
     llm_client: SingleLLMClient | None = None,
     limit: int | None = None,
+    resume: bool = False,
 ) -> Path:
     return run_eval(
         dataset=dataset,
@@ -69,6 +70,7 @@ def run_single_llm_eval(
         enable_llm=enable_llm,
         llm_client=llm_client,
         limit=limit,
+        resume=resume,
     )
 
 
@@ -82,6 +84,7 @@ def run_eval(
     enable_llm: bool = False,
     llm_client: SingleLLMClient | None = None,
     limit: int | None = None,
+    resume: bool = False,
 ) -> Path:
     if method not in {"rule_only", "multi_agent_tools", "single_llm"}:
         raise ValueError(f"Unsupported method: {method}")
@@ -111,9 +114,19 @@ def run_eval(
         scenario_ids = scenario_ids[:limit]
     for scenario_id in scenario_ids:
         record = adapter.load_scenario(scenario_id)
-        metrics, diagnosis = _diagnose(record, method, llm_client)
-        _dump_model(metrics, metrics_dir / f"{scenario_id}.json")
-        _dump_model(diagnosis, diagnoses_dir / f"{scenario_id}.json")
+        metrics_path = metrics_dir / f"{scenario_id}.json"
+        diagnosis_path = diagnoses_dir / f"{scenario_id}.json"
+        if resume and metrics_path.is_file() and diagnosis_path.is_file():
+            metrics = MetricsRecord.model_validate_json(metrics_path.read_text(encoding="utf-8"))
+            diagnosis = DiagnosisRecord.model_validate_json(diagnosis_path.read_text(encoding="utf-8"))
+            if diagnosis.method != method:
+                raise RuntimeError(
+                    f"Cannot resume {run_id}: {scenario_id} was produced by method {diagnosis.method}"
+                )
+        else:
+            metrics, diagnosis = _diagnose(record, method, llm_client)
+            _dump_model(metrics, metrics_path)
+            _dump_model(diagnosis, diagnosis_path)
         figure_paths = write_scenario_artifacts(record, diagnosis, run_dir)
         _write_report(diagnosis, reports_dir / f"{scenario_id}.md", figure_paths)
         row = evaluate_one(record, diagnosis)
@@ -133,6 +146,7 @@ def run_eval(
         "git_commit": _git_commit(),
         "seed": seed,
         "scenario_limit": limit,
+        "resume": resume,
         "created_at": datetime.now().astimezone().isoformat(),
     }
     if active_llm_config is not None:

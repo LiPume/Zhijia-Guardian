@@ -115,14 +115,36 @@ def test_single_llm_unknown_evidence_is_counted_as_hallucination(demo_dataset):
     assert hallucination == 1.0
 
 
+def test_single_llm_preserves_semantic_root_mismatch_for_evaluation():
+    claim = LLMClaim(
+        claim="The model produced an inconsistent semantic pair.",
+        predicted_fault_type="normal",
+        predicted_root_module="perception",
+        evidence_ids=[],
+    )
+    assert claim.predicted_root_module == "perception"
+
+
 def test_single_llm_eval_supports_injected_client_and_limit(demo_dataset, tmp_path):
+    client = SpySingleLLMClient()
     run_dir = run_single_llm_eval(
         dataset=demo_dataset / "perception_like_nuscenes",
         run_id="pytest_single_llm_demo",
         output_root=tmp_path / "runs",
-        llm_client=SpySingleLLMClient(),
+        llm_client=client,
         limit=1,
     )
+    assert len(client.payloads) == 1
+
+    run_single_llm_eval(
+        dataset=demo_dataset / "perception_like_nuscenes",
+        run_id="pytest_single_llm_demo",
+        output_root=tmp_path / "runs",
+        llm_client=client,
+        limit=1,
+        resume=True,
+    )
+    assert len(client.payloads) == 1
     summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
     run_meta = json.loads((run_dir / "run_meta.json").read_text(encoding="utf-8"))
     diagnosis = json.loads(
@@ -132,6 +154,7 @@ def test_single_llm_eval_supports_injected_client_and_limit(demo_dataset, tmp_pa
     assert summary["hallucination_rate"] == 0.0
     assert run_meta["method"] == "single_llm"
     assert run_meta["scenario_limit"] == 1
+    assert run_meta["resume"] is True
     assert run_meta["llm"]["model"] == "gpt-4o-mini"
     assert diagnosis["method"] == "single_llm"
 
@@ -141,3 +164,12 @@ def test_single_llm_default_config_requires_explicit_enable():
     assert config.enabled is False
     with pytest.raises(RuntimeError, match="disabled"):
         create_single_llm_client(config)
+
+
+def test_deepseek_config_uses_chat_json_object_surface():
+    config = load_llm_config(REPO_ROOT / "configs" / "llm_deepseek.yaml")
+    assert config.provider == "deepseek"
+    assert config.model == "deepseek-v4-pro"
+    assert config.endpoint == "chat_completions"
+    assert config.structured_output == "json_object"
+    assert config.api_key_env == "DEEPSEEK_API_KEY"
