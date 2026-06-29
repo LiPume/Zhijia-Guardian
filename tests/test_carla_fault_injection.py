@@ -1,8 +1,15 @@
 import json
 
 from zhijia_guardian.adapters import CarlaAdapter
-from zhijia_guardian.benchmarks.carla_fault_injection import VARIANTS, build_carla_fault_benchmark
+from zhijia_guardian.baselines.rule_only import diagnose_rule_only
+from zhijia_guardian.benchmarks.carla_fault_injection import (
+    VARIANTS,
+    V2_VARIANTS,
+    build_carla_fault_benchmark,
+    build_carla_fault_benchmark_v0_2,
+)
 from zhijia_guardian.graph.diagnosis_graph import run_diagnosis_graph
+from zhijia_guardian.tools.run_metrics import run_all_metrics
 
 
 def _transform(x: float, y: float) -> dict:
@@ -105,3 +112,50 @@ def test_carla_fault_benchmark_builds_six_isolated_variants(tmp_path):
         predicted[scenario.oracle.fault_type] = diagnosis.predicted_fault_type
 
     assert predicted == {variant: variant for variant in VARIANTS}
+
+
+def test_carla_v0_2_adds_parent_split_boundaries_and_temporal_composites(tmp_path):
+    base_dir = tmp_path / "base"
+    output_root = tmp_path / "benchmark_v0_2"
+    base_dir.mkdir()
+    (base_dir / "base_000001.json").write_text(json.dumps(_base_log()), encoding="utf-8")
+
+    manifest = build_carla_fault_benchmark_v0_2(base_dir, output_root, seed=42)
+
+    assert manifest["num_scenarios"] == 10
+    assert manifest["seed"] == 42
+    assert {row["variant"] for row in manifest["scenarios"]} == set(V2_VARIANTS)
+    assert {row["split"] for row in manifest["scenarios"]} == {"test"}
+    assert (output_root / "canonical" / "splits" / "test.jsonl").exists()
+    assert all(row["variant"] not in row["scenario_id"] for row in manifest["scenarios"])
+
+    row_by_id = {row["scenario_id"]: row for row in manifest["scenarios"]}
+    adapter = CarlaAdapter(output_root / "raw" / "logs", output_root / "raw" / "labels")
+    multi_correct = 0
+    rule_correct = 0
+    predictions = {}
+    for scenario_id in adapter.list_scenarios():
+        scenario = adapter.load_scenario(scenario_id)
+        metrics = run_all_metrics(scenario)
+        rule = diagnose_rule_only(scenario, metrics)
+        _, multi = run_diagnosis_graph(scenario, metrics)
+        expected = scenario.oracle.fault_type
+        multi_correct += multi.predicted_fault_type == expected
+        rule_correct += rule.predicted_fault_type == expected
+        predictions[row_by_id[scenario_id]["variant"]] = {
+            "rule": rule.predicted_fault_type,
+            "multi": multi.predicted_fault_type,
+        }
+
+    assert multi_correct == 10
+    assert rule_correct == 8
+    assert predictions["boundary_confidence_normal"] == {"rule": "normal", "multi": "normal"}
+    assert predictions["boundary_planning_normal"] == {"rule": "normal", "multi": "normal"}
+    assert predictions["composite_miss_control"] == {
+        "rule": "control_delay",
+        "multi": "perception_miss",
+    }
+    assert predictions["composite_confidence_control"] == {
+        "rule": "control_delay",
+        "multi": "perception_confidence_drop",
+    }
