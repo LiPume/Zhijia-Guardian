@@ -244,6 +244,28 @@ pip install -e ".[dev,llm]"
 
 其中 `backend.sh` 默认生成/刷新手工样本并跑 rule-only、Multi-Agent + Tools 两组输出；`frontend.sh` 会启动只读 Streamlit 工作台。Single-LLM 默认不运行，避免意外产生 API 费用。
 
+CARLA 0.9.15 已接入独立离线链路。运行时和数据都放在 `/data5`，不会进入 Git：
+
+```bash
+./scripts/setup_carla_runtime.sh
+./carla.sh
+```
+
+另开终端记录真实仿真基础日志并生成 30 条故障集：
+
+```bash
+conda run -n yolo python scripts/record_carla_base_scenarios.py \
+  --count 5 --frames 80 --town Town10HD_Opt --seed 42 --no-rendering \
+  --output-dir /data5/lzx_data/Zhijia-Guardian/datasets/carla/base_v0_1
+
+conda run -n yolo python scripts/generate_carla_fault_benchmark.py \
+  --base-log-dir /data5/lzx_data/Zhijia-Guardian/datasets/carla/base_v0_1 \
+  --output-root /data5/lzx_data/Zhijia-Guardian/datasets/carla/fault_benchmark_v0_1 \
+  --clean
+```
+
+完整安装、兼容补丁、运行限制和复现命令见 [docs/carla_runtime.md](docs/carla_runtime.md)。
+
 生成 6 个 canonical demo：
 
 ```bash
@@ -369,6 +391,17 @@ python experiments/compare_runs.py \
 
 v0.2 使用带车辆长宽/yaw 的矩形碰撞几何，修复了相邻车道被圆形包络误判为 planning risk 的问题。Multi-Agent 相比 v0.1 Accuracy 再提高 4.17 个百分点且没有新增回归。Single-LLM 的 control-delay 识别明显恢复，但仍将 11/12 个 confidence-drop 判成 perception miss，且 Evidence Correctness 只有 0.6827。该结论目前只适用于可控 synthetic benchmark，后续仍需 nuPlan 扰动、CARLA/SafeBench 和 held-out 多 seed 实验。
 
+CARLA v0.1 已在 5 条真实仿真基础日志上派生 30 条离线信号级故障样本：
+
+| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Multi-Agent + Tools | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
+| Rule-only | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
+
+比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/carla_fault_v0_1_seed42/`。
+两种方法都满分说明 v0.1 注入与规则仍一一对应；它是 CARLA 数据链路集成测试，不是多智能体
+优越性证据。下一版必须增加随机强度、边界/复合故障、parent-group 隔离测试集和闭环重跑。
+
 ## 评估指标
 
 诊断准确性：
@@ -418,7 +451,7 @@ DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 A
 
 - Single-LLM baseline，用于对比 hallucination 和 evidence coverage。
 - nuScenes / nuPlan 从 1 个 smoke sample 扩到 5 个样本。
-- CARLA 离线日志生成与故障注入。
+- [已完成 v0.1] CARLA 离线日志生成、canonical adapter 与信号级故障注入。
 
 暂缓：
 

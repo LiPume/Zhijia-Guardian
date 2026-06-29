@@ -1,6 +1,6 @@
 # 智驾卫士实现计划与 Todo
 
-更新时间：2026-06-27
+更新时间：2026-06-29
 
 本 Todo 以 `/home/lzx/Zhijia-Guardian/docx/design.md` 的“0. 最终落地修订版”为准。
 
@@ -32,7 +32,7 @@
 需要后移或删减：
 
 - [ ] nuScenes / nuPlan 不作为第一版根因诊断主 benchmark，只做真实数据 schema smoke test 和小样本 adapter 验证。
-- [ ] CARLA / SafeBench 放到 Multi-Agent 和 UI 跑通之后再接，避免环境成本拖慢 MVP。
+- [x] CARLA 放到 Multi-Agent 和 UI 跑通之后再接；当前已完成 0.9.15 离线 v0.1，SafeBench 继续后移。
 - [ ] DriveLM / DoTA / DADA / Bench2Drive 暂不进 MVP，只作为论文扩展或报告模板参考。
 - [ ] 不做 SFT / RLHF / 隐层特征解释，这些会把项目从诊断产品拉偏到大模型训练。
 - [ ] 不承诺真实车企 NOA 私有日志，答辩时只说 schema 预留和 adapter 可扩展。
@@ -574,18 +574,21 @@ parse_scenario
 
 ## 14. P5：CARLA + ScenarioRunner 接入
 
-- [ ] 在 `/data5/lzx_data/Zhijia-Guardian/third_party/` 下准备 CARLA/ScenarioRunner。
-- [ ] 先跑通官方示例。
-- [ ] 写 `src/adapters/carla_adapter.py`。
-- [ ] 记录 ego、objects、规划轨迹、控制输出。
-- [ ] 转换成统一 ScenarioRecord JSONL。
-- [ ] 实现故障注入：删除检测框、注入假目标、置信度下降、规划轨迹扰动、控制延迟。
+- [x] 在 `/data5/lzx_data/Zhijia-Guardian/third_party/` 下准备 CARLA 0.9.15/ScenarioRunner v0.9.15。
+- [x] ScenarioRunner 官方 `FollowLeadingVehicle_1` 完成 actor、场景树和 criteria smoke；stock 无 ego controller，结果为 TIMEOUT，不宣称 scenario success。
+- [x] 写 `src/zhijia_guardian/adapters/carla_adapter.py`，oracle 仅从独立 label 目录显式合并。
+- [x] 记录 ego、objects、合成 perception、停车 rollout、control、map 和 sensor events。
+- [x] 转换成统一 ScenarioRecord JSONL。
+- [x] 实现离线信号级故障注入：删除检测框、注入假目标、置信度下降、规划轨迹扰动、控制延迟。
+- [ ] 实现控制延迟/规划故障的 CARLA 闭环动力学重跑，替代纯日志信号修改。
+- [ ] 增加随机强度、边界样本、复合故障和 parent-group held-out split。
 
 验收标准：
 
-- [ ] 导出 20-30 个 CARLA 场景。
-- [ ] CARLA 场景可复用同一套指标和 Agent。
-- [ ] 不要求 CARLA 实时接入 Streamlit，先离线回放。
+- [x] 导出 5 个真实仿真父场景并派生 30 个 v0.1 场景。
+- [x] CARLA 场景可复用同一套指标和 Agent；Rule/Multi-Agent 都完成统一评估。
+- [x] 不要求 CARLA 实时接入 Streamlit，当前输出可由工作台离线读取。
+- [x] 明确 v0.1 两种方法均满分只是集成测试结果，不作为多智能体提升证据。
 
 ## 15. P5：SafeBench 子集 adapter
 
