@@ -42,7 +42,9 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     client = carla.Client(args.host, args.port)
     client.set_timeout(30.0)
-    world = client.load_world(args.town)
+    world = client.get_world()
+    if not world.get_map().name.endswith(f"/{args.town}"):
+        world = client.load_world(args.town)
     original_settings = world.get_settings()
     settings = world.get_settings()
     settings.synchronous_mode = True
