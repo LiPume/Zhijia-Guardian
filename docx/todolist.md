@@ -31,11 +31,11 @@
 
 需要后移或删减：
 
-- [ ] nuScenes / nuPlan 不作为第一版根因诊断主 benchmark，只做真实数据 schema smoke test 和小样本 adapter 验证。
+- [x] nuScenes / nuPlan 不作为第一版根因诊断主 benchmark，只做真实数据 schema smoke test 和小样本 adapter 验证。
 - [x] CARLA 放到 Multi-Agent 和 UI 跑通之后再接；当前已完成 0.9.15 离线 v0.1，SafeBench 继续后移。
-- [ ] DriveLM / DoTA / DADA / Bench2Drive 暂不进 MVP，只作为论文扩展或报告模板参考。
-- [ ] 不做 SFT / RLHF / 隐层特征解释，这些会把项目从诊断产品拉偏到大模型训练。
-- [ ] 不承诺真实车企 NOA 私有日志，答辩时只说 schema 预留和 adapter 可扩展。
+- [x] DriveLM / DoTA / DADA / Bench2Drive 暂不进 MVP，只作为论文扩展或报告模板参考。
+- [x] 不做 SFT / RLHF / 隐层特征解释，这些会把项目从诊断产品拉偏到大模型训练。
+- [x] 不承诺真实车企 NOA 私有日志，答辩时只说 schema 预留和 adapter 可扩展。
 
 ## 1. P0：仓库与环境准备
 
@@ -203,10 +203,10 @@ json_mode: true
 - [x] 新增 `docs/schema_mapping_nuscenes.md`。
 - [x] 新增 `docs/schema_mapping_nuplan.md`。
 - [x] 新增 `docs/output_contract.md`。
-- [ ] 新增 `docs/schema_mapping_carla.md`。
+- [x] 新增 `docs/schema_mapping_carla.md`。
 - [x] 实现 `src/adapters/nuscenes_adapter.py` 的 smoke 版本。
 - [x] 实现 `src/adapters/nuplan_adapter.py` 的 smoke 版本。
-- [ ] 实现 `src/adapters/carla_adapter.py`。
+- [x] 实现 `src/zhijia_guardian/adapters/carla_adapter.py`。
 
 所有 adapter 必须实现：
 
@@ -582,7 +582,7 @@ parse_scenario
 - [x] 实现离线信号级故障注入：删除检测框、注入假目标、置信度下降、规划轨迹扰动、控制延迟。
 - [x] 完成 1 组 control-delay 闭环动力学 demo：正常制动无碰撞，延迟 0.8 秒后发生追尾，并保存 RGB 视频和 manifest。
 - [ ] 把 control-delay 闭环从单例扩到多出生点批量场景，并实现 planning fault 闭环重跑。
-- [ ] 增加随机强度、边界样本、复合故障和 parent-group held-out split。
+- [x] CARLA v0.2 增加随机强度、边界样本、复合故障和 parent-group held-out split；50 条全量与 10 条隔离 test 均完成评估。
 
 验收标准：
 
