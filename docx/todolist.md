@@ -580,7 +580,8 @@ parse_scenario
 - [x] 记录 ego、objects、合成 perception、停车 rollout、control、map 和 sensor events。
 - [x] 转换成统一 ScenarioRecord JSONL。
 - [x] 实现离线信号级故障注入：删除检测框、注入假目标、置信度下降、规划轨迹扰动、控制延迟。
-- [ ] 实现控制延迟/规划故障的 CARLA 闭环动力学重跑，替代纯日志信号修改。
+- [x] 完成 1 组 control-delay 闭环动力学 demo：正常制动无碰撞，延迟 0.8 秒后发生追尾，并保存 RGB 视频和 manifest。
+- [ ] 把 control-delay 闭环从单例扩到多出生点批量场景，并实现 planning fault 闭环重跑。
 - [ ] 增加随机强度、边界样本、复合故障和 parent-group held-out split。
 
 验收标准：

@@ -275,6 +275,15 @@ conda run -n yolo python scripts/render_carla_case_videos.py
 输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/case_videos/carla_v0_1/`，包括感知漏检和
 规划碰撞风险两组成对回放。仓库内可直接查看的副本位于 [`demo/`](demo/)。
 
+录制真正的 CARLA 3D RGB 闭环案例：
+
+```bash
+CARLA_RENDER_MODE=xvfb ./carla.sh
+conda run -n yolo python scripts/capture_carla_3d_case_videos.py
+```
+
+输出为 `demo/03_carla_3d_normal_stop.mp4` 和 `demo/04_carla_3d_control_delay.mp4`。
+
 生成 6 个 canonical demo：
 
 ```bash
