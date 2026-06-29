@@ -273,7 +273,7 @@ conda run -n yolo python scripts/render_carla_case_videos.py
 ```
 
 输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/case_videos/carla_v0_1/`，包括感知漏检和
-规划碰撞风险两组成对回放。
+规划碰撞风险两组成对回放。仓库内可直接查看的副本位于 [`demo/`](demo/)。
 
 生成 6 个 canonical demo：
 
