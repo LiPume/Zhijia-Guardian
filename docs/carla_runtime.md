@@ -74,3 +74,24 @@ conda run -n yolo python experiments/run_eval.py \
 - 30 条 v0.1 上 Rule-only 与 Multi-Agent 均为满分，只能证明链路正确，不能证明方法提升。
 - 下一版需要随机注入强度、边界样本、复合故障和 parent-group 隔离的 held-out split；控制
   延迟和规划故障再增加闭环重跑版本。
+
+## 典型案例视频
+
+从同一个 CARLA 父场景生成左右同步的 normal/fault 诊断视频：
+
+```bash
+conda run -n yolo python scripts/render_carla_case_videos.py
+```
+
+输出目录：
+
+```text
+/data5/lzx_data/Zhijia-Guardian/outputs/case_videos/carla_v0_1/
+  01_perception_miss_comparison.mp4
+  02_planning_collision_risk_comparison.mp4
+  index.json
+```
+
+视频为 1280x720、10 fps、H.264。红色框是 CARLA simulation GT，绿色框是感知输出，
+黄色线是 planner trajectory，蓝色框是 ego。右侧红点及 `FAULT ACTIVE` 表示已进入 oracle
+故障时间段。它是基于真实 CARLA 状态日志的 ego-centric BEV 诊断回放，不是相机视频。

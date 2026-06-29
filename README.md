@@ -266,6 +266,15 @@ conda run -n yolo python scripts/generate_carla_fault_benchmark.py \
 
 完整安装、兼容补丁、运行限制和复现命令见 [docs/carla_runtime.md](docs/carla_runtime.md)。
 
+生成两条 CARLA 典型案例视频：
+
+```bash
+conda run -n yolo python scripts/render_carla_case_videos.py
+```
+
+输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/case_videos/carla_v0_1/`，包括感知漏检和
+规划碰撞风险两组成对回放。
+
 生成 6 个 canonical demo：
 
 ```bash
