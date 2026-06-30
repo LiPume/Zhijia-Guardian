@@ -14,6 +14,7 @@ class PlanningEvalResult(BaseModel):
     trajectory_collision_count: int = 0
     min_trajectory_margin: float | None = None
     min_margin_time: float | None = None
+    collision_start_time: float | None = None
     diagnosable_frames: int = 0
     evidence: list[EvidenceRecord] = Field(default_factory=list)
 
@@ -34,6 +35,7 @@ def evaluate_planning(
     collision_count = 0
     min_margin: float | None = None
     min_margin_time: float | None = None
+    collision_start_time: float | None = None
     diagnosable_frames = 0
 
     for frame in scenario.frames:
@@ -63,6 +65,8 @@ def evaluate_planning(
                     min_margin_time = frame.timestamp
                 if margin <= collision_margin:
                     collision_count += 1
+                    if collision_start_time is None:
+                        collision_start_time = frame.timestamp
 
     evidence: list[EvidenceRecord] = []
     if collision_count:
@@ -72,7 +76,7 @@ def evaluate_planning(
                 "trajectory_collision_count",
                 collision_count,
                 0.0,
-                min_margin_time,
+                collision_start_time,
                 "violation",
                 supports=["planning_collision_risk"],
                 contradicts=["normal"],
@@ -98,6 +102,7 @@ def evaluate_planning(
         trajectory_collision_count=collision_count,
         min_trajectory_margin=min_margin,
         min_margin_time=min_margin_time,
+        collision_start_time=collision_start_time,
         diagnosable_frames=diagnosable_frames,
         evidence=evidence,
     )
