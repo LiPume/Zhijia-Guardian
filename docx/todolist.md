@@ -599,15 +599,17 @@ Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持
 
 ## 15. P5：SafeBench 子集 adapter
 
-- [ ] 研究 SafeBench 输出格式。
-- [ ] 写 `src/adapters/safebench_adapter.py`。
-- [ ] 选择少量 perception/control 场景。
-- [ ] 转换成统一 ScenarioRecord JSONL。
+- [x] 研究 SafeBench 输出格式：planning `records.pkl` 只有 ego/criteria，不含 actors、planner output 和 control command。
+- [x] 写 `src/zhijia_guardian/adapters/safebench_adapter.py`，只读严格 JSON export，不在诊断进程加载 pickle。
+- [x] 选择官方 `human` scenario 1 / route 4 的 10 条 Town05 配置做兼容性实测。
+- [x] 新增 `scripts/export_safebench_records.py` 和 `docs/schema_mapping_safebench.md`，固定降级字段映射。
+- [x] 修正无模块证据时的根因输出：返回 `uncertain`，不再错误默认为 `normal`。
 
 验收标准：
 
-- [ ] 至少 10 个 SafeBench 场景可以进入诊断流程。
-- [ ] 不改 SafeBench 内核，只写 adapter。
+- [ ] 至少 10 个真实 SafeBench rollout 可以进入诊断流程：当前 0.9.15 在创建官方 actor 时 UE4 `SIGSEGV`，不伪造完成状态。
+- [x] 不改 SafeBench 内核，只在主仓提供 export/adapter 和运行时兼容性记录。
+- [x] 明确 SafeBench 原生输出不能做本项目 `root_module` 真值评估；完整根因链继续使用 CARLA 0.9.15 recorder。
 
 ## 16. P6：后续真实数据扩展
 

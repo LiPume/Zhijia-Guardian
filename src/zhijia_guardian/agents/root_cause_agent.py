@@ -22,19 +22,23 @@ def run_root_cause_agent(
         final_evidence_ids = candidates[0].evidence_ids
     else:
         normal_evidence = [item for item in metrics.evidence if "normal" in item.supports]
-        predicted = "normal"
-        root_module = "none"
+        predicted = "normal" if normal_evidence else "uncertain"
+        root_module = "none" if normal_evidence else "unknown"
         start_time = None
-        confidence = 0.65 if normal_evidence else 0.2
+        confidence = 0.65 if normal_evidence else 0.0
         final_evidence_ids = [item.evidence_id for item in normal_evidence[:6]]
         candidates = [
             CandidateRootCause(
-                fault_type="normal",
-                root_module="none",
+                fault_type=predicted,
+                root_module=root_module,
                 score=sum(1.0 for _ in normal_evidence),
                 confidence=confidence,
                 evidence_ids=final_evidence_ids,
-                rationale="Available module evidence does not support a fault.",
+                rationale=(
+                    "Available module evidence supports normal operation."
+                    if normal_evidence
+                    else "No diagnosable module evidence is available; normal operation cannot be established."
+                ),
             )
         ]
 
