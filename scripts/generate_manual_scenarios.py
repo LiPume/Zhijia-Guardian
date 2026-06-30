@@ -10,6 +10,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from zhijia_guardian.benchmarks.manual_v0_3 import build_manual_v0_3_records  # noqa: E402
 from zhijia_guardian.schemas.scenario import (  # noqa: E402
     ActorGtSource,
     ActorState,
@@ -64,7 +65,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate noisy manual canonical scenarios.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--count", type=int, default=72)
-    parser.add_argument("--output", default="data/sample_scenarios/manual_json/v0_1")
+    parser.add_argument("--version", choices=("v0_1", "v0_3"), default="v0_1")
+    parser.add_argument("--output", default=None)
     parser.add_argument("--clean", action="store_true", help="Remove output directory before writing.")
     return parser.parse_args()
 
@@ -73,20 +75,23 @@ def main() -> None:
     args = parse_args()
     if args.count < 6:
         raise ValueError("--count must be at least 6")
-    rng = random.Random(args.seed)
-    output = Path(args.output)
+    output = Path(args.output or f"data/sample_scenarios/manual_json/{args.version}")
     if args.clean and output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True, exist_ok=True)
 
-    records = []
-    faults = balanced_faults(args.count)
-    rng.shuffle(faults)
-    for index, fault_type in enumerate(faults, start=1):
-        subset = rng.choice(SUBSET_BY_FAULT[fault_type])
-        difficulty = choose_difficulty(rng, fault_type)
-        scenario_id = f"manual_v0_1_{index:06d}"
-        records.append(generate_record(scenario_id, fault_type, subset, difficulty, args.seed, rng))
+    if args.version == "v0_3":
+        records = build_manual_v0_3_records(count=args.count, seed=args.seed)
+    else:
+        rng = random.Random(args.seed)
+        records = []
+        faults = balanced_faults(args.count)
+        rng.shuffle(faults)
+        for index, fault_type in enumerate(faults, start=1):
+            subset = rng.choice(SUBSET_BY_FAULT[fault_type])
+            difficulty = choose_difficulty(rng, fault_type)
+            scenario_id = f"manual_v0_1_{index:06d}"
+            records.append(generate_record(scenario_id, fault_type, subset, difficulty, args.seed, rng))
 
     for record in records:
         subset = record.source.raw_log_id or "unknown"
