@@ -631,6 +631,26 @@ manual_json/
 }
 ```
 
+### 0.15 2026-06-30 工程验证状态
+
+当前原型已经完成 Canonical schema、nuScenes/nuPlan adapter、nuPlan 成对规划扰动、CARLA
+离线故障注入、CARLA closed-loop、三类诊断方法和 Streamlit 工作台。manual benchmark 已升级
+到 v0.3：先生成完整物理时序，再按 TTC 首次跌破阈值确定风险时刻，感知/规划根因必须早于
+下游控制异常。
+
+72 条 manual v0.3、seed 42、commit `0c7e220` 的正式结果：
+
+| 方法 | Macro-F1 | Root Top-1 | Time MAE@Correct | Evidence Correctness | Hallucination Rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Multi-Agent + Tools | 1.0000 | 1.0000 | 0.0000 | 1.0000 | 0.0000 |
+| Single-LLM / DeepSeek V4 Pro | 0.9861 | 0.9861 | 0.3333 | 0.6250 | 0.1271 |
+| Rule-only | 0.9066 | 0.9028 | 0.0000 | 1.0000 | 0.0000 |
+
+这个结果只证明模块分诊和时序根因排序能处理受控复合故障，不代表自然事故泛化。Single-LLM
+虽分类准确，但幻觉率未达到 0.10 目标，因此产品默认保持 LLM 关闭。下一阶段优先做
+SafeBench/更多 CARLA 模板和多 seed held-out 验证，不把精力投入 Root Cause/Report Agent 的
+自由式 LLM 调用。
+
 ---
 
 ## 1. 项目名称

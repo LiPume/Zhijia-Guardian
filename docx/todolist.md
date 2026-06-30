@@ -1,6 +1,6 @@
 # 智驾卫士实现计划与 Todo
 
-更新时间：2026-06-29
+更新时间：2026-06-30
 
 本 Todo 以 `/home/lzx/Zhijia-Guardian/docx/design.md` 的“0. 最终落地修订版”为准。
 
@@ -9,7 +9,7 @@
 1. 开发环境直接使用 `yolo`，不再新建主环境 `car`。
 2. 代码仓库：`/home/lzx/Zhijia-Guardian`。
 3. 大数据根目录：`/data5/lzx_data/Zhijia-Guardian`。
-4. 第一版先不接 CARLA，先用手工/脚本 JSON 样本跑通完整诊断闭环。
+4. 手工数据、真实数据 adapter、nuPlan 扰动和 CARLA 闭环均已跑通；下一阶段扩展独立场景模板和 held-out 验证。
 5. 主仓自建轻量诊断框架，不直接套用 SafeBench、DriveLM、carla_garage 等大仓库。
 6. 外部框架后续放 `/data5/lzx_data/Zhijia-Guardian/third_party/`，主仓只写 adapter。
 7. 手工样本必须是真实数据兼容的 Canonical Scenario 轻量模拟器，不允许另起玩具格式。
@@ -274,7 +274,7 @@ manual_json/
 - [x] 控制噪声：brake/throttle/steer 延迟和抖动。
 - [x] 复合故障：感知轻微异常 + 规划响应不足。
 - [x] 边界样本：TTC 接近阈值但不一定故障。
-- [ ] manual v0.3：按“首次 TTC 阈值穿越”重建 6 条时序不一致的复合样本 oracle，再刷新三方法结果。
+- [x] manual v0.3：按“首次 TTC 阈值穿越”重建时序一致的 72 条样本，并在 commit `0c7e220` 刷新三方法结果。
 
 Demo 必做三例：
 
@@ -450,8 +450,8 @@ parse_scenario
 
 - [x] 每个 Agent 输入输出都是 JSON/Pydantic。
 - [x] 模块 Agent 先用规则，不依赖 LLM。
-- [ ] Root Cause Agent 可以调用 LLM，但必须只基于 evidence。
-- [ ] Report Agent 可以调用 LLM，但输出中必须区分确定结论和不确定结论。
+- [x] MVP 的 Root Cause Agent 固定使用 evidence + 时序因果规则；不接自由式 LLM，避免把不可复现输出混入主方法。
+- [x] MVP 的 Report Agent 使用确定性模板；LLM 报告仅保留为可选实验，不作为第一版验收项。
 - [x] 无证据时必须输出 `uncertain` 或 `skipped`，不能硬猜。
 - [x] 第一版默认 LLM 关闭，Multi-Agent + Tools 必须在纯规则模式下可运行。
 - [x] 模块 Agent 严禁读取 `oracle`。
@@ -466,13 +466,16 @@ parse_scenario
 - [x] 每个 claim 都有 `claim_id` 和 `evidence_ids`。
 - [x] Planning Agent 相邻车道误报回归已覆盖：control-delay/normal 不再被轨迹圆形包络误判为 planning risk。
 
-当前 72 个 noisy manual 样本结果：
+当前 72 个 manual v0.3 样本结果（seed 42，commit `0c7e220`）：
 
 | 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct | Evidence Correctness | Hallucination Rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Multi-Agent + Tools | 0.9028 | 0.9049 | 0.9028 | 0.9833 | 0.4545 | 1.0000 | 0.0000 |
-| Rule-only | 0.7361 | 0.7563 | 0.7361 | 0.9667 | 0.3956 | 1.0000 | 0.0000 |
-| Single-LLM / DeepSeek V4 Pro | 0.7500 | 0.6169 | 0.9028 | 0.8667 | 0.2645 | 0.6827 | 0.1331 |
+| Multi-Agent + Tools | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 1.0000 | 0.0000 |
+| Single-LLM / DeepSeek V4 Pro | 0.9861 | 0.9861 | 0.9861 | 0.8167 | 0.3333 | 0.6250 | 0.1271 |
+| Rule-only | 0.9028 | 0.9066 | 0.9028 | 1.0000 | 0.0000 | 1.0000 | 0.0000 |
+
+说明：Multi-Agent 的满分是可控 synthetic benchmark 上的机制验证，不代表自然事故泛化。
+Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持 LLM 关闭。
 
 ## 10. P2：Single-LLM baseline
 
@@ -488,10 +491,11 @@ parse_scenario
 - [x] DeepSeek 使用 Chat Completions `json_object`，本地 Pydantic 校验，不伪装成 OpenAI Responses 原生 schema。
 - [x] API 实验支持 `--resume`，逐场景复用已完成输出，避免中断后重复计费。
 - [x] DeepSeek 真实 5 样本 smoke test 已完成：Accuracy 0.4000、Root Top-1 0.6000、Hallucination Rate 0.1467。
+- [x] DeepSeek 在 manual v0.3 正式 72 样本完成评估：Accuracy/Macro-F1 0.9861，Evidence Correctness 0.6250，Hallucination Rate 0.1271。
 
 验收标准：
 
-- [x] 已在相同 72 样本、seed 42、commit `48f0578` 上完成 v0.2 三方法结果对比。
+- [x] 已在相同 72 样本、seed 42、commit `0c7e220` 上完成 v0.3 三方法结果对比。
 - [x] 新增 `experiments/compare_runs.py`，输出 comparison CSV/JSON/Markdown 并校验场景集合一致。
 - [x] 能统计 hallucination rate；无效 evidence 引用已有自动测试。
 
@@ -662,10 +666,10 @@ parse_scenario
 - [ ] 所有核心逻辑在 `src/`，不把业务逻辑写死在 notebook。
 - [ ] 所有脚本只做 CLI 入口，放在 `scripts/` 或 `experiments/`。
 - [ ] 所有配置放在 `configs/`，不在代码中硬编码阈值、路径、LLM 开关。
-- [ ] 所有实验输出必须有 `run_id`。
-- [ ] 所有随机过程必须有 seed。
-- [ ] 所有数据读取必须区分 observed view 和 `oracle`。
-- [ ] 单元测试至少覆盖 schema、指标工具、无标签泄漏。
+- [x] 所有实验输出必须有 `run_id`。
+- [x] 所有随机过程必须有 seed。
+- [x] 所有数据读取必须区分 observed view 和 `oracle`。
+- [x] 单元测试至少覆盖 schema、指标工具、无标签泄漏。
 
 推荐命令形态：
 

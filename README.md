@@ -302,11 +302,12 @@ python scripts/run_real_smoke_test.py
 python scripts/generate_nuplan_perturbation.py --pairs 5 --seed 42 --clean
 ```
 
-生成 noisy manual benchmark：
+生成当前 noisy manual benchmark：
 
 ```bash
 python scripts/generate_manual_scenarios.py \
-  --output data/sample_scenarios/manual_json/v0_1 \
+  --version v0_3 \
+  --output /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
   --count 72 \
   --seed 42 \
   --clean
@@ -317,8 +318,8 @@ python scripts/generate_manual_scenarios.py \
 ```bash
 python experiments/run_eval.py \
   --method rule_only \
-  --dataset data/sample_scenarios/manual_json/v0_1 \
-  --run-id manual_v0_1_noisy_rule_seed42 \
+  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
+  --run-id manual_v0_3_rule_seed42 \
   --seed 42
 ```
 
@@ -327,8 +328,8 @@ python experiments/run_eval.py \
 ```bash
 python experiments/run_eval.py \
   --method multi_agent_tools \
-  --dataset data/sample_scenarios/manual_json/v0_1 \
-  --run-id manual_v0_1_noisy_multi_agent_seed42 \
+  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
+  --run-id manual_v0_3_multi_agent_seed42 \
   --seed 42
 ```
 
@@ -340,8 +341,8 @@ export OPENAI_API_KEY='your-api-key'
 
 python experiments/run_eval.py \
   --method single_llm \
-  --dataset data/sample_scenarios/manual_json/v0_1 \
-  --run-id manual_v0_1_noisy_single_llm_seed42 \
+  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
+  --run-id manual_v0_3_single_llm_smoke5_seed42 \
   --seed 42 \
   --enable-llm \
   --limit 5
@@ -364,8 +365,8 @@ DEEPSEEK_MODEL=deepseek-v4-pro
 ```bash
 python experiments/run_eval.py \
   --method single_llm \
-  --dataset data/sample_scenarios/manual_json/v0_1 \
-  --run-id manual_v0_1_single_llm_deepseek_seed42 \
+  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
+  --run-id manual_v0_3_single_llm_deepseek_v4_pro_seed42 \
   --llm-config configs/llm_deepseek.yaml \
   --enable-llm \
   --resume
@@ -389,25 +390,25 @@ streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501
 
 ## 当前实验结果
 
-三种方法已在完全相同的 72 个 noisy manual 场景、seed 42 和 commit `48f0578` 上完成 v0.2 统一评估：
+三种方法已在完全相同的 72 个 manual v0.3 场景、seed 42 和 commit `0c7e220` 上完成统一评估：
 
 | 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct | Evidence Correctness | Hallucination Rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Multi-Agent + Tools | 0.9028 | 0.9049 | 0.9028 | 0.9833 | 0.4545 | 1.0000 | 0.0000 |
-| Rule-only | 0.7361 | 0.7563 | 0.7361 | 0.9667 | 0.3956 | 1.0000 | 0.0000 |
-| Single-LLM / DeepSeek V4 Pro | 0.7500 | 0.6169 | 0.9028 | 0.8667 | 0.2645 | 0.6827 | 0.1331 |
+| Multi-Agent + Tools | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 1.0000 | 0.0000 |
+| Single-LLM / DeepSeek V4 Pro | 0.9861 | 0.9861 | 0.9861 | 0.8167 | 0.3333 | 0.6250 | 0.1271 |
+| Rule-only | 0.9028 | 0.9066 | 0.9028 | 1.0000 | 0.0000 | 1.0000 | 0.0000 |
 
-正式比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_2_seed42/`，包含 `comparison.csv`、`comparison.json` 和 `comparison.md`。生成命令：
+正式比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_3_seed42/`，包含 `comparison.csv`、`comparison.json` 和 `comparison.md`。生成命令：
 
 ```bash
 python experiments/compare_runs.py \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_2_noisy_rule_seed42 \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_2_noisy_single_llm_deepseek_v4_pro_seed42 \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_2_noisy_multi_agent_seed42 \
-  --output-dir /data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_2_seed42
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_3_rule_seed42 \
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_3_single_llm_deepseek_v4_pro_seed42 \
+  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_3_multi_agent_seed42 \
+  --output-dir /data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_3_seed42
 ```
 
-v0.2 使用带车辆长宽/yaw 的矩形碰撞几何，修复了相邻车道被圆形包络误判为 planning risk 的问题。Multi-Agent 相比 v0.1 Accuracy 再提高 4.17 个百分点且没有新增回归。Single-LLM 的 control-delay 识别明显恢复，但仍将 11/12 个 confidence-drop 判成 perception miss，且 Evidence Correctness 只有 0.6827。该结论目前只适用于可控 synthetic benchmark，后续仍需 nuPlan 扰动、CARLA/SafeBench 和 held-out 多 seed 实验。
+v0.3 先生成物理时序，再按 TTC 首次跌破阈值确定风险时刻；上游感知/规划故障必须早于下游控制异常。Rule-only 的 7 条错误全部是把复合故障的下游 `control_delay` 当成根因，Multi-Agent 用模块分诊和时序因果排序恢复了上游根因。Single-LLM 分类接近满分，但 Evidence Correctness 仅 0.6250、Hallucination Rate 为 0.1271，因此不能只用分类准确率声称报告可信。完整定义见 [docs/manual_benchmark_v0_3.md](docs/manual_benchmark_v0_3.md)。
 
 CARLA v0.1 已在 5 条真实仿真基础日志上派生 30 条离线信号级故障样本：
 
@@ -445,9 +446,8 @@ planning-fault，共 15 条真实动力学日志。正式 commit `80bacf9`：
 fault 误判为 control delay；Multi-Agent 根据危险规划早于控制失效的时间关系恢复根因。完整
 定义见 [docs/carla_closed_loop_v0_1.md](docs/carla_closed_loop_v0_1.md)。
 
-注意：commit `474a4a5` 起，控制风险时间改为 TTC 首次跌破阈值。旧 manual v0.2 的结果仍是
-commit `48f0578` 的历史可复现结果；按新定义回归时发现 6 条复合样本 oracle 的时序顺序不一致，
-需在 manual v0.3 重建后再更新当前指标，不通过调权重掩盖数据问题。
+注意：旧 manual v0.2 结果仍是 commit `48f0578` 的历史可复现结果。commit `0c7e220` 已完成
+manual v0.3 重建和三方法刷新；当前结果不再混用旧 oracle 与新的首次 TTC 风险时间定义。
 
 ## 评估指标
 
