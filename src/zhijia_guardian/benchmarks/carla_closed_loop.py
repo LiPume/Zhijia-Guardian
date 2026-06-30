@@ -243,7 +243,7 @@ def _record_case(
             planning_active = (
                 case_name == "planning_collision_risk" and elapsed >= planning_fault_start
             )
-            braking_started = braking_started or (ttc is not None and ttc <= 1.25)
+            braking_started = braking_started or (ttc is not None and ttc < 1.5)
             should_brake = braking_started
             if case_name == "control_delay" and risk_start_abs is not None:
                 braking_started = pre_time - risk_start_abs >= control_delay
