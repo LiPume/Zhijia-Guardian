@@ -274,6 +274,7 @@ manual_json/
 - [x] 控制噪声：brake/throttle/steer 延迟和抖动。
 - [x] 复合故障：感知轻微异常 + 规划响应不足。
 - [x] 边界样本：TTC 接近阈值但不一定故障。
+- [ ] manual v0.3：按“首次 TTC 阈值穿越”重建 6 条时序不一致的复合样本 oracle，再刷新三方法结果。
 
 Demo 必做三例：
 
@@ -581,7 +582,7 @@ parse_scenario
 - [x] 转换成统一 ScenarioRecord JSONL。
 - [x] 实现离线信号级故障注入：删除检测框、注入假目标、置信度下降、规划轨迹扰动、控制延迟。
 - [x] 完成 1 组 control-delay 闭环动力学 demo：正常制动无碰撞，延迟 0.8 秒后发生追尾，并保存 RGB 视频和 manifest。
-- [ ] 把 control-delay 闭环从单例扩到多出生点批量场景，并实现 planning fault 闭环重跑。
+- [x] 把 control-delay 闭环扩到 5 个出生点，并实现 planning fault 闭环重跑；共 15 条，normal 5/5 无碰撞，两类 fault 10/10 碰撞。
 - [x] CARLA v0.2 增加随机强度、边界样本、复合故障和 parent-group held-out split；50 条全量与 10 条隔离 test 均完成评估。
 
 验收标准：
@@ -590,6 +591,7 @@ parse_scenario
 - [x] CARLA 场景可复用同一套指标和 Agent；Rule/Multi-Agent 都完成统一评估。
 - [x] 不要求 CARLA 实时接入 Streamlit，当前输出可由工作台离线读取。
 - [x] 明确 v0.1 两种方法均满分只是集成测试结果，不作为多智能体提升证据。
+- [x] 闭环 v0.1 完成全量与 parent-isolated test：Multi-Agent Macro-F1 1.0000，Rule-only 0.5556。
 
 ## 15. P5：SafeBench 子集 adapter
 

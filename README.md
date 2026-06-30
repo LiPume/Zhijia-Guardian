@@ -433,6 +433,22 @@ commit `7b3cafd` 的结果为：
 故障上的协作机制价值，不代表自然事故上的普遍提升。完整定义见
 [docs/carla_benchmark_v0_2.md](docs/carla_benchmark_v0_2.md)。
 
+CARLA closed-loop v0.1 进一步实际重跑了 5 个父场景的 normal、control-delay 和
+planning-fault，共 15 条真实动力学日志。正式 commit `80bacf9`：
+
+| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Multi-Agent + Tools | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
+| Rule-only | 0.6667 | 0.5556 | 0.6667 | 1.0000 | 0.0000 |
+
+5 条 normal 均无碰撞，5 条控制延迟和 5 条危险规划均产生真实碰撞。Rule-only 将 planning
+fault 误判为 control delay；Multi-Agent 根据危险规划早于控制失效的时间关系恢复根因。完整
+定义见 [docs/carla_closed_loop_v0_1.md](docs/carla_closed_loop_v0_1.md)。
+
+注意：commit `474a4a5` 起，控制风险时间改为 TTC 首次跌破阈值。旧 manual v0.2 的结果仍是
+commit `48f0578` 的历史可复现结果；按新定义回归时发现 6 条复合样本 oracle 的时序顺序不一致，
+需在 manual v0.3 重建后再更新当前指标，不通过调权重掩盖数据问题。
+
 ## 评估指标
 
 诊断准确性：

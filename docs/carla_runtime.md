@@ -95,6 +95,9 @@ conda run -n yolo python scripts/capture_carla_3d_case_videos.py
 `demo/carla_3d_case_manifest.json`。正常案例风险出现后立即制动且无碰撞；control-delay
 案例真实延迟 0.8 秒后制动并发生追尾，属于闭环动力学差异。
 
+批量闭环 benchmark 的记录、转换和评估见
+[`docs/carla_closed_loop_v0_1.md`](carla_closed_loop_v0_1.md)。
+
 BEV 成对诊断案例：
 
 从同一个 CARLA 父场景生成左右同步的 normal/fault 诊断视频：
