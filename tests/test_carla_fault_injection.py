@@ -36,7 +36,7 @@ def _base_log() -> dict:
     for index in range(12):
         ego_x = min(index * 0.6, 4.2)
         ego_speed = 6.0 if index < 7 else 0.0
-        target = _actor(2, 10.0, 0.0, key=True)
+        target = _actor(2, 12.0, 0.0, key=True)
         frames.append(
             {
                 "frame_id": 100 + index,
@@ -51,7 +51,7 @@ def _base_log() -> dict:
                             "track_id": "det_2",
                             "type": "vehicle",
                             "confidence": 0.92,
-                            "transform": _transform(10.0, 0.0),
+                            "transform": _transform(12.0, 0.0),
                             "bounding_box": target["bounding_box"],
                             "matched_actor_id": 2,
                         }

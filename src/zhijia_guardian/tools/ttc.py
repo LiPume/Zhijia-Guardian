@@ -25,6 +25,7 @@ class TtcResult(BaseModel):
     points: list[TtcPoint] = Field(default_factory=list)
     min_ttc: float | None = None
     min_ttc_time: float | None = None
+    risk_start_time: float | None = None
     min_distance: float | None = None
     min_distance_time: float | None = None
     evidence: list[EvidenceRecord] = Field(default_factory=list)
@@ -40,6 +41,7 @@ def compute_ttc(
     points: list[TtcPoint] = []
     min_ttc: float | None = None
     min_ttc_time: float | None = None
+    risk_start_time: float | None = None
     min_distance: float | None = None
     min_distance_time: float | None = None
 
@@ -66,6 +68,8 @@ def compute_ttc(
                 ttc = longitudinal_distance / closing_speed if closing_speed > 0.1 else None
             points.append(TtcPoint(timestamp=frame.timestamp, actor_id=actor.actor_id, distance=distance, ttc=ttc))
             if ttc is not None and math.isfinite(ttc):
+                if ttc < ttc_threshold and risk_start_time is None:
+                    risk_start_time = frame.timestamp
                 if min_ttc is None or ttc < min_ttc:
                     min_ttc = ttc
                     min_ttc_time = frame.timestamp
@@ -117,6 +121,7 @@ def compute_ttc(
         points=points,
         min_ttc=min_ttc,
         min_ttc_time=min_ttc_time,
+        risk_start_time=risk_start_time,
         min_distance=min_distance,
         min_distance_time=min_distance_time,
         evidence=evidence,

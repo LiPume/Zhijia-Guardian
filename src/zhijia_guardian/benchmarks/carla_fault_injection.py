@@ -380,8 +380,8 @@ def _make_v2_variant(
             "expected": "above planning collision margin",
         }
 
-    risk_index, min_ttc = _minimum_ttc(record, key_actor_id)
-    if risk_index is None or min_ttc is None or min_ttc >= 1.5:
+    risk_index, risk_ttc = _first_ttc_below(record, key_actor_id)
+    if risk_index is None or risk_ttc is None:
         raise ValueError(f"{variant} requires a base log with min TTC below 1.5 s")
     perception_start = max(1, risk_index - rng.randint(4, 6))
     delay = round(rng.uniform(0.7, 1.0), 3)
@@ -467,8 +467,8 @@ def _inject_boundary_planning(
 
 
 def _inject_control_delay(record: CarlaRawLog, actor_id: int, delay_seconds: float) -> int:
-    risk_index, min_ttc = _minimum_ttc(record, actor_id)
-    if risk_index is None or min_ttc is None or min_ttc >= 1.5:
+    risk_index, risk_ttc = _first_ttc_below(record, actor_id)
+    if risk_index is None or risk_ttc is None:
         raise ValueError("control-delay injection requires a base log with min TTC below 1.5 s")
     risk_time = record.frames[risk_index].simulation_time
     end_time = risk_time + delay_seconds
@@ -558,3 +558,30 @@ def _minimum_ttc(record: CarlaRawLog, actor_id: int) -> tuple[int | None, float 
         if best_ttc is None or ttc < best_ttc:
             best_index, best_ttc = index, ttc
     return best_index, best_ttc
+
+
+def _first_ttc_below(
+    record: CarlaRawLog,
+    actor_id: int,
+    threshold: float = 1.5,
+) -> tuple[int | None, float | None]:
+    for index, frame in enumerate(record.frames):
+        actor = next((item for item in frame.actors if item.actor_id == actor_id), None)
+        if actor is None:
+            continue
+        ego = frame.ego
+        yaw = math.radians(ego.transform.rotation.yaw)
+        heading_x, heading_y = math.cos(yaw), math.sin(yaw)
+        dx = actor.transform.location.x - ego.transform.location.x
+        dy = actor.transform.location.y - ego.transform.location.y
+        longitudinal = dx * heading_x + dy * heading_y
+        lateral = -dx * heading_y + dy * heading_x
+        ego_speed = ego.velocity.x * heading_x + ego.velocity.y * heading_y
+        actor_speed = actor.velocity.x * heading_x + actor.velocity.y * heading_y
+        closing_speed = ego_speed - actor_speed
+        if longitudinal <= 0.0 or abs(lateral) > 3.0 or closing_speed <= 0.1:
+            continue
+        ttc = longitudinal / closing_speed
+        if ttc < threshold:
+            return index, ttc
+    return None, None

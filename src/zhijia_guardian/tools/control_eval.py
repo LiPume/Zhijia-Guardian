@@ -18,7 +18,7 @@ class ControlEvalResult(BaseModel):
 
 def evaluate_control_delay(
     scenario: ScenarioRecord,
-    min_ttc_time: float | None,
+    risk_start_time: float | None,
     min_ttc: float | None,
     factory: EvidenceFactory | None = None,
     ttc_threshold: float = 1.5,
@@ -29,9 +29,8 @@ def evaluate_control_delay(
     if min_ttc is None or min_ttc >= ttc_threshold:
         return ControlEvalResult()
     if not any(frame.control.available for frame in scenario.frames):
-        return ControlEvalResult(risk_start_time=min_ttc_time)
+        return ControlEvalResult(risk_start_time=risk_start_time)
 
-    risk_start_time = min_ttc_time
     brake_response_time: float | None = None
     for frame in scenario.frames:
         if risk_start_time is None or frame.timestamp < risk_start_time:

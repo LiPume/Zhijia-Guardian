@@ -19,7 +19,7 @@ def run_all_metrics(scenario: ScenarioRecord) -> MetricsRecord:
     collision = detect_collisions(scenario, factory=factory)
     perception = evaluate_perception(scenario, factory=factory)
     planning = evaluate_planning(scenario, factory=factory)
-    control = evaluate_control_delay(scenario, ttc.min_ttc_time, ttc.min_ttc, factory=factory)
+    control = evaluate_control_delay(scenario, ttc.risk_start_time, ttc.min_ttc, factory=factory)
     comfort = evaluate_comfort(scenario, factory=factory)
     for result in [ttc, collision, perception, planning, control, comfort]:
         evidence.extend(result.evidence)
