@@ -16,16 +16,18 @@
 - TTC、碰撞、感知异常、规划风险、控制延迟等指标工具。
 - Rule-only baseline 和评估入口。
 - Single-LLM baseline，使用去标签化的场景/指标摘要、结构化输出和 evidence 引用校验；默认关闭 API 调用。
-- Multi-Agent + Tools 纯规则诊断链路，包含 metric、scene、perception、planning、control、root cause、report agent。
+- 显式 Pydantic 多 Agent 图，包含 metric、scene、perception、planning、control fan-out 和 root-cause fan-in；节点输入已物理移除 oracle。
 - `run_id` 级实验输出目录，包含 `run_report.md`、`figures/`、`tables/`、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
 - failure sample package，包含 `failure_samples.jsonl`、`tables/failure_samples.csv` 和 `failure_samples/{scenario_id}/failure_sample.json`。
 - Streamlit 只读工作台，直接读取输出包展示指标、错误样本、BEV、timeline、agent trace 和报告。
-- pytest 覆盖 schema、真实 adapter、demo eval、manual generator 和无标签泄漏。
+- CARLA 0.9.15 离线故障注入和 15 条 closed-loop benchmark，含 3D RGB 典型案例视频。
+- pytest 覆盖 schema、真实 adapter、图状态、复合故障时序、demo eval、manual generator 和无标签泄漏。
 
 暂未完成的部分：
 
-- LangGraph 依赖化编排；当前先使用轻量 `diagnosis_graph.py` 保持无额外依赖。
-- CARLA / SafeBench 全链路仿真接入。
+- SafeBench 官方 0.9.13 runtime 的真实 rollout；现有 0.9.15 在创建官方场景 actor 时会崩溃，主仓只保留安全 JSON adapter。
+- nuScenes 真实相机/点云模型输出接入；当前仍是 metadata/annotation smoke。
+- 多 seed、更多 CARLA 场景模板和自然事故外部验证。
 
 ## 项目边界
 
@@ -48,7 +50,7 @@
 
 这个 idea 可行，但前提是范围要收敛清楚。
 
-可行的部分是：把自动驾驶复盘流程拆成统一 schema、确定性指标工具、模块化诊断 Agent、证据链和报告输出。这个方向工程上能落地，也能跑出数据和对比指标，因为 manual perturbation / CARLA / SafeBench 一类数据可以提供已知 oracle，用于计算 Fault Macro-F1、Root Cause Top-1、Fault Start Time MAE、Evidence Coverage 和 Hallucination Rate。
+可行的部分是：把自动驾驶复盘流程拆成统一 schema、确定性指标工具、模块化诊断 Agent、证据链和报告输出。这个方向工程上能落地，也能跑出数据和对比指标，因为 manual perturbation 和 CARLA 故障注入可以提供已知 oracle，用于计算 Fault Macro-F1、Root Cause Top-1、Fault Start Time MAE、Evidence Coverage 和 Hallucination Rate。SafeBench 原生输出缺少完整模块日志，只作为降级 adapter 候选。
 
 不适合直接承诺的部分是：仅靠 nuScenes 或 nuPlan 直接证明根因诊断效果。nuScenes 更适合验证感知相关 schema 和 annotation 映射；nuPlan 更适合验证规划场景骨架、地图、ego future 和 scenario tag 的读取。它们本身不是“带系统故障根因标签”的诊断数据集，所以第一版只能把它们作为真实数据接入 smoke test 和可视化/字段覆盖验证。
 
@@ -175,6 +177,17 @@ evaluator reads oracle only
   -> 多 Agent 诊断层
   -> 报告与评估层
 ```
+
+多 Agent 诊断层采用显式 fan-out/fan-in 图：
+
+```text
+Metric Agent -> Scene Agent ------------------+
+             -> Perception Agent --+          |
+             -> Planning Agent ----+-> Root Cause Agent
+             -> Control Agent -----+          |
+```
+
+完整状态、oracle 隔离和测试方法见 [docs/multi_agent_graph.md](docs/multi_agent_graph.md)。
 
 ### 数据适配层
 
@@ -331,6 +344,14 @@ python experiments/run_eval.py \
   --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
   --run-id manual_v0_3_multi_agent_seed42 \
   --seed 42
+```
+
+检查单个场景的图拓扑和 Agent 执行轨迹：
+
+```bash
+python scripts/inspect_diagnosis_graph.py \
+  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
+  --scenario-id manual_v0_3_000001
 ```
 
 运行 Single-LLM 前，在本机 shell 配置密钥。不要把密钥写入 YAML 或提交到 Git：

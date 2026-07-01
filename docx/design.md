@@ -30,7 +30,7 @@
 | --- | --- | --- | --- |
 | 数据层 | CARLA、nuPlan、nuScenes、多模态数据全接入 | 方向正确，但一开始直接上 CARLA/大数据会拖慢开发 | 先做真实数据兼容的 `manual_json`，再抽 5 个 nuScenes mini/nuPlan mini 样本验证 adapter，CARLA/SafeBench 后移 |
 | 指标工具层 | TTC、碰撞、漏检、误检、轨迹偏离等 Python 工具 | 完全可行，是项目最稳的核心 | 必须优先实现，所有 Agent 结论必须引用指标证据 |
-| 多智能体诊断层 | LangGraph 编排多个 Agent | 可行，但 Agent 不能自由聊天 | 用固定状态图和 Pydantic schema；模块 Agent 先用规则，LLM 只做根因归纳/报告 |
+| 多智能体诊断层 | LangGraph 编排多个 Agent | 可行，但 Agent 不能自由聊天 | 当前用显式 Pydantic DAG 实现 fan-out/fan-in；模块 Agent 使用确定性 evidence，暂不引入外部编排依赖 |
 | 根因归因与报告层 | 主因、副因、证据链、优化建议 | 可行 | 用“最早异常 + 因果传递 + 风险贡献 + 证据一致性”评分 |
 | 可视化与评估层 | Streamlit 工作台 | 可行 | 第一版做轨迹图、时间线、Agent 输出、报告和实验表 |
 
@@ -637,6 +637,10 @@ manual_json/
 离线故障注入、CARLA closed-loop、三类诊断方法和 Streamlit 工作台。manual benchmark 已升级
 到 v0.3：先生成完整物理时序，再按 TTC 首次跌破阈值确定风险时刻，感知/规划根因必须早于
 下游控制异常。
+
+commit `838ba17` 已把多 Agent 顺序函数升级为显式 Pydantic DAG：Metric/Scene 为准备节点，
+Perception/Planning/Control 为 fan-out，Root Cause 为 fan-in。图初始化会从 `observed_view()`
+重建输入对象，因此 Agent 实际收到的记录中 `oracle=None` 且不含 generation 标签。
 
 72 条 manual v0.3、seed 42、commit `0c7e220` 的正式结果：
 
