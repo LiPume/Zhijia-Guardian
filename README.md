@@ -23,6 +23,7 @@
 - Streamlit 只读工作台，直接读取输出包展示指标、错误样本、BEV、timeline、agent trace 和报告。
 - CARLA 0.9.15 离线故障注入、15 条 closed-loop benchmark 和 12 条极端天气 held-out benchmark，含 3D RGB 典型案例视频。
 - nuScenes mini 5 个真实道路场景、202 张前视关键帧的 YOLOv8n 推理、公开标注投影关联和无 oracle 多 Agent 诊断。
+- 可选 Qwen3.7-Plus Visual Review Agent，支持纯原图 `direct_vlm` 与原图加去标签 evidence 的 `vlm_with_tools` 两条旁路实验。
 - pytest 覆盖 schema、真实 adapter、图状态、复合故障时序、demo eval、manual generator 和无标签泄漏。
 
 暂未完成的部分：
@@ -334,6 +335,23 @@ conda run -n yolo python experiments/run_diagnosis.py \
 该入口不会读取或伪造 oracle，因此只输出诊断假设，不生成 Accuracy/F1。详细结果、投影关联方式和
 限制见 [docs/nuscenes_real_yolo_v0_1.md](docs/nuscenes_real_yolo_v0_1.md)，H.264 视频位于
 [`demo/real_nuscenes/`](demo/real_nuscenes/)。
+
+让 Qwen3.7-Plus 直接复核真实原始帧：
+
+```bash
+# 不调用 API，只检查每个场景选中的 8 张原图和哈希
+conda run -n yolo python experiments/run_visual_review.py \
+  --prepare-only --mode direct_vlm \
+  --run-id nuscenes_real_qwen37_direct_v0_1_prepare
+
+# 配置 DASHSCOPE_API_KEY 后，先只调用 1 个场景
+conda run -n yolo python experiments/run_visual_review.py \
+  --enable-vlm --limit 1 --mode direct_vlm \
+  --run-id nuscenes_real_qwen37_direct_v0_1
+```
+
+该结果按 `visual_review_v1` 保存为旁路输出，默认不参与确定性 Root Cause 排序。两种实验模式和
+能力边界见 [docs/qwen_visual_review.md](docs/qwen_visual_review.md)。
 
 生成当前 noisy manual benchmark：
 

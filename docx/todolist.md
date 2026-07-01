@@ -16,6 +16,7 @@
 8. tools 和 agents 永远只读取 `ScenarioRecord` / observed view，不直接读取 nuScenes/nuPlan/CARLA 原始格式。
 9. 从现在开始，每完成一个独立模块必须先跑相关验证，再提交 git commit，方便后续回溯。
 10. MVP 保留显式 Pydantic DAG；只有需要人工中断恢复、持久化 checkpoint、跨进程重试或 time-travel 时才引入可选 LangGraph backend。
+11. 多模态模型先作为 Visual Review sidecar 和 Direct-VLM baseline，不直接覆盖确定性根因结论。
 
 ## 0.1 当前可行性判断与路线收敛
 
@@ -481,6 +482,7 @@ parse_scenario
 - [x] 框架级测试覆盖 oracle 隔离、缺字段 skip、trace 顺序和“上游根因 + 下游控制延迟”复合故障。
 - [x] commit `838ba17` 回归：manual v0.3 72 条与 CARLA closed-loop 15 条的 Accuracy/Macro-F1/Root Top-1 均保持 1.0000。
 - [x] `diagnosis_v1`、`diagnosis_report_v1` 和 `failure_sample_v1` 输出契约已固定，并可导出 JSON Schema。
+- [x] 新增 `visual_review_v1`：固定原图哈希、采样帧、模型信息、视觉观察和无 oracle/annotation 边界。
 
 当前 72 个 manual v0.3 样本结果（seed 42，commit `0c7e220`）：
 
@@ -640,6 +642,10 @@ Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持
 - [x] 真实前视结果：annotation recall 0.4706、key actor recall 0.5391、detection precision 0.7248、matched class accuracy 0.9290。
 - [x] 5 个真实片段均生成多 Agent 报告；Planning/Control 自动 skip，不计算伪造的 Fault Macro-F1。
 - [x] 真实数据暴露并修复置信度自然波动误诊；manual v0.3、CARLA weather、closed-loop 回归保持 1.0000 Macro-F1。
+- [x] 实现 Qwen3.7-Plus Visual Review Agent：`direct_vlm` 与 `vlm_with_tools` 两种模式。
+- [x] 5 个真实片段均完成 prepare-only 输入校验，每段均匀抽 8 帧，未调用 API。
+- [ ] 配置 `DASHSCOPE_API_KEY` 后各跑 1 个 direct/tools smoke，检查 token、延迟、JSON 合规和视觉幻觉。
+- [ ] 增加人工视觉复核表后，比较 Direct-VLM、VLM+Tools 和当前 YOLO+Tools 的真实场景 usefulness。
 - [ ] nuScenes 多相机/LiDAR 3D detector：替换当前单前视 COCO detector，并做距离分桶召回。
 - [ ] DeepAccident mini：调研下载 20 个 accident/normal 场景，作为事故检测和 failure sample adapter 候选。
 - [ ] DoTA/DADA：只作为 accident/anomaly 时间定位补充，不作为 root_module 诊断主数据。

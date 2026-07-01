@@ -669,6 +669,11 @@ checkpoint、跨进程重试或 time-travel 后，才增加可选 LangGraph back
 Planning/Control 因字段缺失自动 skip。由于数据没有系统故障根因 oracle，不能计算 Fault Macro-F1，
 也不能把这 5 个假设表述成“5/5 诊断正确”。
 
+多模态复核采用旁路而不是替换主图：`direct_vlm` 让 Qwen3.7-Plus 只看 8 张均匀抽取的原始
+CAM_FRONT 帧，用作 Single-VLM baseline；`vlm_with_tools` 再加入去标签化 metrics/evidence，作为
+Visual Review Agent。两者都不接收 projected annotation 图、actors_gt、oracle 或主 Agent 最终结论，
+输出统一 `visual_review_v1`。在没有人工视觉标签前，该输出不参与确定性 Root Cause 排序。
+
 ---
 
 ## 1. 项目名称

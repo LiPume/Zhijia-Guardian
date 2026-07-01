@@ -36,6 +36,17 @@ reports, figures, `tables/diagnosis_index.csv`, `summary.json`, and `run_report.
 `eval.csv`, confusion matrices, Accuracy/F1, or failure-sample packages. Every prediction is labeled as an
 engineering hypothesis in the run report.
 
+## Visual Review Sidecar
+
+Optional multimodal review writes `visual_reviews/{scenario_id}.json` using `visual_review_v1`. It is a sidecar and
+does not silently replace the deterministic diagnosis. Every record stores model/mode, sampled raw-frame hashes,
+structured visual observations, and API metadata. `oracle_used=false` and `annotation_images_used=false` are fixed
+contract values. The exported JSON Schema is `docs/contracts/visual_review_v1.schema.json`.
+
+`direct_vlm` receives only uniformly sampled raw frames and timestamps. `vlm_with_tools` may additionally receive
+sanitized metric values and evidence IDs, but never annotation boxes, oracle labels, file names containing fault
+labels, or another Agent's final prediction.
+
 ## Directories
 
 | Directory | Contents |
