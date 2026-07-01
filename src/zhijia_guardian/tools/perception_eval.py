@@ -34,7 +34,7 @@ def evaluate_perception(
     fp_time: float | None = None
     confusion_time: float | None = None
     confidence_time: float | None = None
-    confidence_by_track: dict[str, list[tuple[float, float]]] = {}
+    confidence_by_track: dict[str, list[tuple[float, float, float | None, bool]]] = {}
 
     for frame in scenario.frames:
         if not frame.perception.available:
@@ -54,7 +54,14 @@ def evaluate_perception(
             if actor.is_key_actor and detection.confidence < confidence_threshold:
                 missed += 1
                 miss_time = miss_time if miss_time is not None else frame.timestamp
-            confidence_by_track.setdefault(detection.track_id, []).append((frame.timestamp, detection.confidence))
+            confidence_by_track.setdefault(detection.track_id, []).append(
+                (
+                    frame.timestamp,
+                    detection.confidence,
+                    _bbox_area(detection.bbox_xyxy),
+                    actor.is_key_actor,
+                )
+            )
 
         for detection in frame.perception.detections:
             if id(detection) not in matched_detection_ids:
@@ -62,14 +69,10 @@ def evaluate_perception(
                 fp_time = fp_time if fp_time is not None else frame.timestamp
 
     for values in confidence_by_track.values():
-        if len(values) < 2:
-            continue
-        max_conf = max(conf for _, conf in values)
-        for timestamp, conf in values:
-            if max_conf - conf >= confidence_drop:
-                confidence_drop_events += 1
-                confidence_time = confidence_time if confidence_time is not None else timestamp
-                break
+        drop_time = _persistent_confidence_drop(values, confidence_drop)
+        if drop_time is not None:
+            confidence_drop_events += 1
+            confidence_time = confidence_time if confidence_time is not None else drop_time
 
     evidence: list[EvidenceRecord] = []
     if missed:
@@ -155,9 +158,22 @@ def _match_frame(frame: FrameRecord, match_distance: float) -> list[tuple[object
     matches = []
     available = list(frame.perception.detections)
     for actor in frame.actors_gt:
+        explicit_index = next(
+            (
+                index
+                for index, detection in enumerate(available)
+                if detection.matched_gt_id == actor.actor_id
+            ),
+            None,
+        )
+        if explicit_index is not None:
+            matches.append((actor, available.pop(explicit_index), 0.0))
+            continue
         best_index: int | None = None
         best_distance: float | None = None
         for index, detection in enumerate(available):
+            if detection.x is None or detection.y is None:
+                continue
             distance = euclidean_distance(actor.x, actor.y, detection.x, detection.y)
             if best_distance is None or distance < best_distance:
                 best_index = index
@@ -167,3 +183,34 @@ def _match_frame(frame: FrameRecord, match_distance: float) -> list[tuple[object
         else:
             matches.append((actor, available.pop(best_index), best_distance))
     return matches
+
+
+def _bbox_area(bbox: tuple[float, float, float, float] | None) -> float | None:
+    if bbox is None:
+        return None
+    return (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+
+
+def _persistent_confidence_drop(
+    values: list[tuple[float, float, float | None, bool]],
+    drop_threshold: float,
+    min_consecutive: int = 2,
+    min_area_ratio: float = 0.6,
+) -> float | None:
+    if len(values) < min_consecutive + 1:
+        return None
+    for start in range(1, len(values) - min_consecutive + 1):
+        baseline = max(values[:start], key=lambda item: item[1])
+        low_values = values[start : start + min_consecutive]
+        if not all(item[3] for item in low_values):
+            continue
+        if not all(baseline[1] - item[1] >= drop_threshold for item in low_values):
+            continue
+        baseline_area = baseline[2]
+        if baseline_area is not None and not all(
+            item[2] is not None and item[2] >= baseline_area * min_area_ratio
+            for item in low_values
+        ):
+            continue
+        return low_values[0][0]
+    return None

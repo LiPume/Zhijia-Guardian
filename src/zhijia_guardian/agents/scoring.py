@@ -19,8 +19,8 @@ ROOT_MODULE = {
 
 LABEL_PRIORITY = [
     "control_delay",
-    "perception_confidence_drop",
     "perception_miss",
+    "perception_confidence_drop",
     "perception_false_positive",
     "perception_class_confusion",
     "planning_collision_risk",
@@ -101,7 +101,7 @@ def _weight(metric_name: str, label: str) -> float:
     if metric_name == "brake_delay" and label == "control_delay":
         return 4.0
     if metric_name == "confidence_drop_events" and label == "perception_confidence_drop":
-        return 4.0
+        return 3.0
     if metric_name in {"missed_key_actors", "false_positives", "class_confusions"}:
         return 3.0
     if metric_name == "trajectory_collision_count" and label == "planning_collision_risk":

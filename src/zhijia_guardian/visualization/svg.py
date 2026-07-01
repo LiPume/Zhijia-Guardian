@@ -158,7 +158,11 @@ def _collect_bev_paths(scenario: ScenarioRecord, diagnosis: DiagnosisRecord) -> 
     frame = _select_frame(scenario, diagnosis)
     if frame is not None:
         paths["planning"] = [(point.x, point.y) for point in frame.planning.trajectory]
-        paths["detections"] = [(det.x, det.y) for det in frame.perception.detections]
+        paths["detections"] = [
+            (det.x, det.y)
+            for det in frame.perception.detections
+            if det.x is not None and det.y is not None
+        ]
     return paths
 
 

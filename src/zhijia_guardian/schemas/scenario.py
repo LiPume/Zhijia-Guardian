@@ -109,18 +109,34 @@ class ActorState(StrictModel):
     width: float = 0.0
     height: float | None = None
     is_key_actor: bool = False
+    sensor_bbox_xyxy: tuple[float, float, float, float] | None = None
+    sensor_channel: str | None = None
+
+    @model_validator(mode="after")
+    def validate_sensor_bbox(self) -> "ActorState":
+        _validate_xyxy(self.sensor_bbox_xyxy, "actor sensor_bbox_xyxy")
+        return self
 
 
 class Detection(StrictModel):
     track_id: str
     type: str
     confidence: float = Field(ge=0.0, le=1.0)
-    x: float
-    y: float
+    x: float | None = None
+    y: float | None = None
     yaw: float = 0.0
     length: float = 0.0
     width: float = 0.0
     matched_gt_id: str | None = None
+    bbox_xyxy: tuple[float, float, float, float] | None = None
+    sensor_channel: str | None = None
+    model_class: str | None = None
+    association_iou: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_bbox(self) -> "Detection":
+        _validate_xyxy(self.bbox_xyxy, "detection bbox_xyxy")
+        return self
 
 
 class PerceptionState(StrictModel):
@@ -243,3 +259,16 @@ class ScenarioRecord(StrictModel):
 
     def load_oracle_for_eval(self) -> OracleRecord | None:
         return self.oracle
+
+
+def _validate_xyxy(
+    bbox: tuple[float, float, float, float] | None,
+    field_name: str,
+) -> None:
+    if bbox is None:
+        return
+    x1, y1, x2, y2 = bbox
+    if not all(isfinite(value) for value in bbox):
+        raise ValueError(f"{field_name} must contain finite values")
+    if x2 <= x1 or y2 <= y1:
+        raise ValueError(f"{field_name} must satisfy x2>x1 and y2>y1")
