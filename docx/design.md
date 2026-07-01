@@ -662,6 +662,13 @@ checkpoint、跨进程重试或 time-travel 后，才增加可选 LangGraph back
 它验证诊断机制在天气上下文下仍可工作，但当前 perception 是 annotation-derived，不等价于真实
 图像检测器的天气鲁棒性。
 
+2026-07-01 真实数据补充：nuScenes mini 已从 metadata smoke 扩展到真实 `CAM_FRONT` 模型输出。
+在 5 个真实 scene 的 202 张关键帧上运行冻结 YOLOv8n，并通过相机标定把 3D annotation 投影到
+二维做离线关联。结果为 annotation recall 0.4706、key actor recall 0.5391、detection precision
+0.7248、matched class accuracy 0.9290。5 个片段均输出 perception-miss 主导的诊断假设，
+Planning/Control 因字段缺失自动 skip。由于数据没有系统故障根因 oracle，不能计算 Fault Macro-F1，
+也不能把这 5 个假设表述成“5/5 诊断正确”。
+
 ---
 
 ## 1. 项目名称

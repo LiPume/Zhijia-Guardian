@@ -9,7 +9,7 @@
 1. 开发环境直接使用 `yolo`，不再新建主环境 `car`。
 2. 代码仓库：`/home/lzx/Zhijia-Guardian`。
 3. 大数据根目录：`/data5/lzx_data/Zhijia-Guardian`。
-4. 手工数据、真实数据 adapter、nuPlan 扰动、CARLA 闭环和极端天气 held-out 验证均已跑通；下一阶段接真实视觉 detector 和多 seed 验证。
+4. 手工数据、真实数据 adapter、nuPlan 扰动、CARLA 闭环、极端天气 held-out 和 nuScenes 真实前视 detector 均已跑通；下一阶段做多相机/LiDAR 与多 seed 验证。
 5. 主仓自建轻量诊断框架，不直接套用 SafeBench、DriveLM、carla_garage 等大仓库。
 6. 外部框架后续放 `/data5/lzx_data/Zhijia-Guardian/third_party/`，主仓只写 adapter。
 7. 手工样本必须是真实数据兼容的 Canonical Scenario 轻量模拟器，不允许另起玩具格式。
@@ -634,7 +634,13 @@ Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持
 ## 16. P6：后续真实数据扩展
 
 - [x] nuPlan mini：真实场景骨架 + 成对 perturbed planner 规划风险诊断；5 个父 scene/10 个样本，且不把 `scenario_tag` 当 fault label。
-- [ ] nuScenes mini：metadata-only 先做 schema/annotation 映射；若要真实感知评估，选择性解出 5 个 sample 媒体并运行 detector。
+- [x] nuScenes mini metadata-only schema/annotation 映射。
+- [x] 选择性解出 404 张真实 `CAM_FRONT` 关键帧；在 5 个 scene/202 帧上运行官方 YOLOv8n。
+- [x] 实现 3D annotation 相机投影、2D IoU 关联、`NuScenesVisionAdapter` 和无 oracle 诊断入口。
+- [x] 真实前视结果：annotation recall 0.4706、key actor recall 0.5391、detection precision 0.7248、matched class accuracy 0.9290。
+- [x] 5 个真实片段均生成多 Agent 报告；Planning/Control 自动 skip，不计算伪造的 Fault Macro-F1。
+- [x] 真实数据暴露并修复置信度自然波动误诊；manual v0.3、CARLA weather、closed-loop 回归保持 1.0000 Macro-F1。
+- [ ] nuScenes 多相机/LiDAR 3D detector：替换当前单前视 COCO detector，并做距离分桶召回。
 - [ ] DeepAccident mini：调研下载 20 个 accident/normal 场景，作为事故检测和 failure sample adapter 候选。
 - [ ] DoTA/DADA：只作为 accident/anomaly 时间定位补充，不作为 root_module 诊断主数据。
 - [ ] DriveLM：借鉴图式问答模板，不作为第一版主数据集。

@@ -1,4 +1,14 @@
-# CARLA 典型案例视频
+# 典型案例视频
+
+## nuScenes 真实道路案例
+
+- `real_nuscenes/scene-0103-yolov8n-diagnosis.mp4`：拥挤城区 40 帧连续前视图。
+- `real_nuscenes/scene-0553-yolov8n-diagnosis.mp4`：关键目标召回相对较高的 41 帧片段。
+- `real_nuscenes/scene-0103-frame-028.jpg`：用于快速检查投影和关联框的代表帧。
+
+视频为 1600x900、2 fps、H.264，来自 nuScenes mini 真实 `CAM_FRONT` 图像。绿色 GT 框表示与
+YOLO 成功关联，红色 GT 框表示未检出；蓝色 YOLO 框表示成功关联，黄色 YOLO 框表示未关联。
+这些是公开标注辅助的离线感知检查，不包含 fault/root oracle。
 
 ## 3D RGB 闭环案例
 

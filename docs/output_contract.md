@@ -29,6 +29,13 @@ Macro-F1, and writes `comparison.csv`, `comparison.json`, and `comparison.md` un
 directory. The current v0.2 package is stored at
 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_2_seed42/`; the v0.1 package remains archived beside it.
 
+## Unlabeled Real-Data Runs
+
+`experiments/run_diagnosis.py` is used when a real dataset has no fault/root oracle. It writes metrics, diagnoses,
+reports, figures, `tables/diagnosis_index.csv`, `summary.json`, and `run_report.md`, but deliberately does not write
+`eval.csv`, confusion matrices, Accuracy/F1, or failure-sample packages. Every prediction is labeled as an
+engineering hypothesis in the run report.
+
 ## Directories
 
 | Directory | Contents |
