@@ -1,0 +1,4 @@
+method,num_scenarios,repeats,num_measurements,mean_ms_per_scenario,median_ms_per_scenario,p95_ms_per_scenario,throughput_scenarios_per_second,dataset,timing_scope,git_commit
+rule_only,72,10,720,5.364977,6.472131,9.828173,186.372,/data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3_multiseed/seed_42,canonical_scenario_to_diagnosis_including_metric_tools,0cbe5bddb332e17edb69f4d0704ec419f812e654
+multi_agent_no_temporal_causal,72,10,720,6.159575,7.413195,10.750176,162.318,/data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3_multiseed/seed_42,canonical_scenario_to_diagnosis_including_metric_tools,0cbe5bddb332e17edb69f4d0704ec419f812e654
+multi_agent_tools,72,10,720,5.850537,7.050747,10.671411,170.892,/data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3_multiseed/seed_42,canonical_scenario_to_diagnosis_including_metric_tools,0cbe5bddb332e17edb69f4d0704ec419f812e654

@@ -605,7 +605,7 @@ Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持
 - [x] 实现离线信号级故障注入：删除检测框、注入假目标、置信度下降、规划轨迹扰动、控制延迟。
 - [x] 完成 1 组 control-delay 闭环动力学 demo：正常制动无碰撞，延迟 0.8 秒后发生追尾，并保存 RGB 视频和 manifest。
 - [x] 把 control-delay 闭环扩到 5 个出生点，并实现 planning fault 闭环重跑；共 15 条，normal 5/5 无碰撞，两类 fault 10/10 碰撞。
-- [x] CARLA v0.2 增加随机强度、边界样本、复合故障和 parent-group held-out split；50 条全量与 10 条隔离 test 均完成评估。
+- [x] CARLA v0.2-riskfix 增加随机强度、边界样本、复合故障和 parent-group held-out split；修正最低 TTC/首次风险注入不一致，50 条全量与 10 条隔离 test 均完成重评估。
 - [x] CARLA extreme-weather v0.1：重雨、浓雾、夜间风暴按天气整组划分，共 12 条真实 rollout。
 - [x] 极端天气 held-out test：Multi-Agent Macro-F1 1.0000，Rule-only 0.3750；明确当前只验证诊断机制，不声称视觉 detector 天气鲁棒性。
 
@@ -679,6 +679,7 @@ Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持
 - [x] failure sample package。
 - [x] failure sample 与诊断报告的版本化格式、oracle 边界和 JSON Schema。
 - [x] 数据格式文档。
+- [x] 正式实验分析报告、五 seed 稳定性、时序因果消融、真实数据表和延迟表。
 - [ ] 软著/答辩可用说明材料。
 
 ## 19. 第一版完成定义
