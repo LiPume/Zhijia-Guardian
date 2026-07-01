@@ -12,8 +12,11 @@ def run_root_cause_agent(
     metrics: MetricsRecord,
     module_diagnoses: list[ModuleDiagnosis],
     existing_trace: list[AgentStepRecord],
+    *,
+    enable_temporal_causal: bool = True,
+    method: str = "multi_agent_tools",
 ) -> DiagnosisRecord:
-    candidates = _build_candidates(module_diagnoses)
+    candidates = _build_candidates(module_diagnoses, enable_temporal_causal)
     if candidates:
         predicted = candidates[0].fault_type
         root_module = candidates[0].root_module
@@ -46,7 +49,7 @@ def run_root_cause_agent(
     claims.append(
         ClaimRecord(
             claim_id=f"C_{len(claims) + 1:03d}",
-            claim=f"Multi-Agent + Tools predicts {predicted}.",
+            claim=f"{method} predicts {predicted}.",
             predicted_fault_type=predicted,
             predicted_root_module=root_module,
             evidence_ids=final_evidence_ids,
@@ -59,7 +62,11 @@ def run_root_cause_agent(
             status="completed",
             summary=f"Ranked {len(candidates)} candidate root causes; top-1 is {predicted}.",
             evidence_ids=final_evidence_ids,
-            output={"top_fault_type": predicted, "top_root_module": root_module},
+            output={
+                "top_fault_type": predicted,
+                "top_root_module": root_module,
+                "temporal_causal_ranking": enable_temporal_causal,
+            },
         )
     )
     return DiagnosisRecord(
@@ -68,7 +75,7 @@ def run_root_cause_agent(
         predicted_root_module=root_module,
         predicted_fault_start_time=start_time,
         confidence=confidence,
-        method="multi_agent_tools",
+        method=method,
         candidate_root_causes=candidates,
         agent_trace=trace,
         evidence=metrics.evidence,
@@ -76,13 +83,20 @@ def run_root_cause_agent(
     )
 
 
-def _build_candidates(module_diagnoses: list[ModuleDiagnosis]) -> list[CandidateRootCause]:
+def _build_candidates(
+    module_diagnoses: list[ModuleDiagnosis],
+    enable_temporal_causal: bool = True,
+) -> list[CandidateRootCause]:
     candidates = []
     for module in module_diagnoses:
         label = module.predicted_fault_type
         if module.status != "completed" or label in {None, "normal"}:
             continue
-        adjusted_score = _adjusted_score(module, module_diagnoses)
+        adjusted_score = (
+            _adjusted_score(module, module_diagnoses)
+            if enable_temporal_causal
+            else module.score
+        )
         candidates.append(
             CandidateRootCause(
                 fault_type=label,
@@ -90,7 +104,10 @@ def _build_candidates(module_diagnoses: list[ModuleDiagnosis]) -> list[Candidate
                 score=adjusted_score,
                 confidence=min(1.0, adjusted_score / 5.0),
                 evidence_ids=module.evidence_ids,
-                rationale=f"{module.summary} causal_score={adjusted_score:.2f} raw_score={module.score:.2f}.",
+                rationale=(
+                    f"{module.summary} causal_score={adjusted_score:.2f} "
+                    f"raw_score={module.score:.2f} temporal_causal={enable_temporal_causal}."
+                ),
             )
         )
     candidates.sort(key=lambda item: (-item.score, _priority_rank(item.fault_type)))

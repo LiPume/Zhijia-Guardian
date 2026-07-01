@@ -13,7 +13,16 @@ from zhijia_guardian.experiments.run_eval import run_eval  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Zhijia Guardian experiments.")
-    parser.add_argument("--method", default="rule_only", choices=["rule_only", "multi_agent_tools", "single_llm"])
+    parser.add_argument(
+        "--method",
+        default="rule_only",
+        choices=[
+            "rule_only",
+            "multi_agent_tools",
+            "multi_agent_no_temporal_causal",
+            "single_llm",
+        ],
+    )
     parser.add_argument("--dataset", default="data/sample_scenarios/canonical_demo")
     parser.add_argument("--run-id", default="manual_v0_1_rule_smoke")
     parser.add_argument("--output-root", default="/data5/lzx_data/Zhijia-Guardian/outputs/runs")

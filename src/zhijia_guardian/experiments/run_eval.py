@@ -23,7 +23,7 @@ from zhijia_guardian.experiments.failure_sample_builder import (
     write_failure_sample_package,
 )
 from zhijia_guardian.experiments.output_artifacts import write_run_artifacts, write_scenario_artifacts
-from zhijia_guardian.graph import run_diagnosis_graph
+from zhijia_guardian.graph import run_diagnosis_graph, run_diagnosis_graph_no_temporal_causal
 from zhijia_guardian.schemas.diagnosis import DiagnosisRecord
 from zhijia_guardian.schemas.failure_sample import FailureSampleRecord
 from zhijia_guardian.schemas.metrics import MetricsRecord
@@ -86,7 +86,12 @@ def run_eval(
     limit: int | None = None,
     resume: bool = False,
 ) -> Path:
-    if method not in {"rule_only", "multi_agent_tools", "single_llm"}:
+    if method not in {
+        "rule_only",
+        "multi_agent_tools",
+        "multi_agent_no_temporal_causal",
+        "single_llm",
+    }:
         raise ValueError(f"Unsupported method: {method}")
     if limit is not None and limit <= 0:
         raise ValueError("limit must be positive")
@@ -173,6 +178,8 @@ def _diagnose(
             raise RuntimeError("Single-LLM client is not configured")
         metrics = run_all_metrics(record)
         return metrics, diagnose_single_llm(record, metrics, llm_client)
+    if method == "multi_agent_no_temporal_causal":
+        return run_diagnosis_graph_no_temporal_causal(record)
     return run_diagnosis_graph(record)
 
 

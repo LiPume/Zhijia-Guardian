@@ -4,6 +4,7 @@ from zhijia_guardian.graph.diagnosis_graph import (
     DiagnosisGraphState,
     GraphNodeSpec,
     run_diagnosis_graph,
+    run_diagnosis_graph_no_temporal_causal,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "DiagnosisGraphState",
     "GraphNodeSpec",
     "run_diagnosis_graph",
+    "run_diagnosis_graph_no_temporal_causal",
 ]

@@ -62,6 +62,15 @@ class DiagnosisGraph:
         ("control", run_control_agent),
     )
 
+    def __init__(
+        self,
+        *,
+        enable_temporal_causal: bool = True,
+        method: str = "multi_agent_tools",
+    ) -> None:
+        self.enable_temporal_causal = enable_temporal_causal
+        self.method = method
+
     def describe(self) -> list[dict[str, object]]:
         return [node.model_dump(mode="json") for node in self.NODE_SPECS]
 
@@ -130,8 +139,7 @@ class DiagnosisGraph:
         state.trace.append(_module_step(diagnosis))
         state.executed_nodes.append(f"{module_name}_agent")
 
-    @staticmethod
-    def _run_root_node(state: DiagnosisGraphState) -> None:
+    def _run_root_node(self, state: DiagnosisGraphState) -> None:
         metrics = _require_metrics(state)
         missing = [name for name, _ in DiagnosisGraph.MODULE_NODES if name not in state.module_diagnoses]
         if missing:
@@ -142,6 +150,8 @@ class DiagnosisGraph:
             metrics,
             modules,
             state.trace,
+            enable_temporal_causal=self.enable_temporal_causal,
+            method=self.method,
         )
         state.trace = list(state.diagnosis.agent_trace)
         state.executed_nodes.append("root_cause_agent")
@@ -183,6 +193,10 @@ def _module_step(module: ModuleDiagnosis) -> AgentStepRecord:
 
 
 DEFAULT_DIAGNOSIS_GRAPH = DiagnosisGraph()
+NO_TEMPORAL_CAUSAL_GRAPH = DiagnosisGraph(
+    enable_temporal_causal=False,
+    method="multi_agent_no_temporal_causal",
+)
 
 
 def run_diagnosis_graph(
@@ -190,4 +204,12 @@ def run_diagnosis_graph(
     metrics: MetricsRecord | None = None,
 ) -> tuple[MetricsRecord, DiagnosisRecord]:
     state = DEFAULT_DIAGNOSIS_GRAPH.invoke(scenario, metrics)
+    return _require_metrics(state), state.diagnosis  # type: ignore[return-value]
+
+
+def run_diagnosis_graph_no_temporal_causal(
+    scenario: ScenarioRecord,
+    metrics: MetricsRecord | None = None,
+) -> tuple[MetricsRecord, DiagnosisRecord]:
+    state = NO_TEMPORAL_CAUSAL_GRAPH.invoke(scenario, metrics)
     return _require_metrics(state), state.diagnosis  # type: ignore[return-value]

@@ -8,7 +8,11 @@ import pytest
 from zhijia_guardian.adapters import ManualAdapter
 from zhijia_guardian.benchmarks.manual_v0_3 import build_manual_v0_3_records
 from zhijia_guardian.experiments.run_eval import run_multi_agent_eval
-from zhijia_guardian.graph import DiagnosisGraph, run_diagnosis_graph
+from zhijia_guardian.graph import (
+    DiagnosisGraph,
+    run_diagnosis_graph,
+    run_diagnosis_graph_no_temporal_causal,
+)
 from zhijia_guardian.schemas.metrics import MetricsRecord
 from zhijia_guardian.tools.run_metrics import run_all_metrics
 
@@ -169,6 +173,10 @@ def test_diagnosis_graph_temporal_fan_in_recovers_composite_upstream_root():
         assert state.diagnosis.predicted_fault_type == record.oracle.fault_type
         assert state.diagnosis.predicted_root_module == record.oracle.root_module
         assert state.diagnosis.candidate_root_causes[0].root_module == record.oracle.root_module
+        _, ablation = run_diagnosis_graph_no_temporal_causal(record, metrics)
+        assert ablation.method == "multi_agent_no_temporal_causal"
+        assert ablation.predicted_fault_type == "control_delay"
+        assert ablation.predicted_root_module == "control"
         return
     raise AssertionError("seed 42 should contain an upstream + control-delay composite")
 
