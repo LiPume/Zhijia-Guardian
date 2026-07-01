@@ -4,6 +4,7 @@ from zhijia_guardian.benchmarks.carla_fault_injection import (
 )
 from zhijia_guardian.benchmarks.carla_closed_loop import record_carla_closed_loop_benchmark
 from zhijia_guardian.benchmarks.manual_v0_3 import build_manual_v0_3_records
+from zhijia_guardian.benchmarks.carla_weather import record_carla_weather_benchmark
 from zhijia_guardian.benchmarks.nuplan_perturbation import build_nuplan_perturbation_records
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "build_manual_v0_3_records",
     "build_nuplan_perturbation_records",
     "record_carla_closed_loop_benchmark",
+    "record_carla_weather_benchmark",
 ]

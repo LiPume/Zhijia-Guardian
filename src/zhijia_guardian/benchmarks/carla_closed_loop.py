@@ -93,6 +93,7 @@ def record_carla_closed_loop_benchmark(
                     target_speed=target_speed,
                     control_delay=control_delay,
                     planning_fault_start=planning_fault_start,
+                    perception_fault_start=0.5,
                 )
                 log_path = log_dir / f"{scenario_index:06d}.json"
                 label_path = label_dir / f"{scenario_id}.label.json"
@@ -168,6 +169,7 @@ def _record_case(
     target_speed: float,
     control_delay: float,
     planning_fault_start: float,
+    perception_fault_start: float,
 ) -> tuple[CarlaRawLog, dict]:
     actors = []
     sensors = []
@@ -223,6 +225,7 @@ def _record_case(
         first_capture_time = None
         risk_start_abs = None
         planning_fault_abs = None
+        perception_fault_abs = None
         brake_start_abs = None
         min_ttc = None
         stopped_frames = 0
@@ -243,9 +246,13 @@ def _record_case(
             planning_active = (
                 case_name == "planning_collision_risk" and elapsed >= planning_fault_start
             )
+            perception_active = (
+                case_name == "perception_confidence_drop"
+                and elapsed >= perception_fault_start
+            )
             braking_started = braking_started or (ttc is not None and ttc < 1.5)
             should_brake = braking_started
-            if case_name == "control_delay" and risk_start_abs is not None:
+            if case_name in {"control_delay", "perception_confidence_drop"} and risk_start_abs is not None:
                 braking_started = pre_time - risk_start_abs >= control_delay
                 should_brake = braking_started
             elif case_name == "planning_collision_risk" and planning_active:
@@ -261,6 +268,8 @@ def _record_case(
             simulation_time = snapshot.timestamp.elapsed_seconds
             if planning_active and planning_fault_abs is None:
                 planning_fault_abs = simulation_time
+            if perception_active and perception_fault_abs is None:
+                perception_fault_abs = simulation_time
             _, current_ttc, current_speed = _risk_state(ego, lead)
             if current_ttc is not None:
                 min_ttc = current_ttc if min_ttc is None else min(min_ttc, current_ttc)
@@ -275,6 +284,7 @@ def _record_case(
                     event_buffer.pop(frame_id, []),
                     target_speed,
                     unsafe_planning=planning_active,
+                    detection_confidence=0.4 if perception_active else 0.95,
                 )
             )
 
@@ -300,6 +310,8 @@ def _record_case(
             fault_start_abs = risk_start_abs
         elif case_name == "planning_collision_risk":
             fault_start_abs = planning_fault_abs
+        elif case_name == "perception_confidence_drop":
+            fault_start_abs = perception_fault_abs
         else:
             fault_start_abs = None
         fault_start_time = (
@@ -337,6 +349,7 @@ def _snapshot_frame(
     target_speed: float,
     *,
     unsafe_planning: bool,
+    detection_confidence: float,
 ) -> dict:
     ego_snapshot = _actor_snapshot(ego, is_key_actor=False)
     lead_snapshot = _actor_snapshot(lead, is_key_actor=True)
@@ -349,7 +362,7 @@ def _snapshot_frame(
         "perception": {
             "available": True,
             "detection_source": "synthetic_from_annotation",
-            "detections": [_synthetic_detection(lead_snapshot)],
+            "detections": [_synthetic_detection(lead_snapshot, detection_confidence)],
         },
         "planning": {
             "available": True,
@@ -450,11 +463,14 @@ def _actor_snapshot(actor, *, is_key_actor: bool) -> dict[str, Any]:
     }
 
 
-def _synthetic_detection(actor_snapshot: dict[str, Any]) -> dict[str, Any]:
+def _synthetic_detection(
+    actor_snapshot: dict[str, Any],
+    confidence: float = 0.95,
+) -> dict[str, Any]:
     return {
         "track_id": f"det_{actor_snapshot['actor_id']}",
         "type": "vehicle",
-        "confidence": 0.95,
+        "confidence": confidence,
         "transform": actor_snapshot["transform"],
         "bounding_box": actor_snapshot["bounding_box"],
         "matched_actor_id": actor_snapshot["actor_id"],
