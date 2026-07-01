@@ -7,11 +7,13 @@ from pathlib import Path
 
 from zhijia_guardian.schemas.diagnosis import DiagnosisRecord
 from zhijia_guardian.schemas.failure_sample import FailureSampleRecord
+from zhijia_guardian.schemas.visual_review import VisualReviewRecord
 
 
 SCHEMAS = {
     "diagnosis_v1.schema.json": DiagnosisRecord,
     "failure_sample_v1.schema.json": FailureSampleRecord,
+    "visual_review_v1.schema.json": VisualReviewRecord,
 }
 
 

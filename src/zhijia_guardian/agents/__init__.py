@@ -5,6 +5,7 @@ from zhijia_guardian.agents.planning_agent import run_planning_agent
 from zhijia_guardian.agents.report_agent import render_markdown_report
 from zhijia_guardian.agents.root_cause_agent import run_root_cause_agent
 from zhijia_guardian.agents.scene_agent import run_scene_agent
+from zhijia_guardian.agents.visual_review_agent import run_visual_review_agent
 
 __all__ = [
     "render_markdown_report",
@@ -14,4 +15,5 @@ __all__ = [
     "run_planning_agent",
     "run_root_cause_agent",
     "run_scene_agent",
+    "run_visual_review_agent",
 ]

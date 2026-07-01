@@ -26,6 +26,7 @@ from zhijia_guardian.schemas.scenario import (
     ScenarioRecord,
     SourceInfo,
 )
+from zhijia_guardian.schemas.visual_review import VisualReviewRecord
 
 
 def _record() -> ScenarioRecord:
@@ -139,4 +140,7 @@ def test_exported_json_schemas_match_pydantic_models():
     )
     assert json.loads((contract_dir / "failure_sample_v1.schema.json").read_text()) == (
         FailureSampleRecord.model_json_schema()
+    )
+    assert json.loads((contract_dir / "visual_review_v1.schema.json").read_text()) == (
+        VisualReviewRecord.model_json_schema()
     )
