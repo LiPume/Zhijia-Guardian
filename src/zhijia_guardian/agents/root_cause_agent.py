@@ -53,7 +53,6 @@ def run_root_cause_agent(
         )
     )
     trace = list(existing_trace)
-    trace.extend(_module_trace(module_diagnoses))
     trace.append(
         AgentStepRecord(
             agent_name="root_cause_agent",
@@ -134,26 +133,6 @@ def _module_claims(module_diagnoses: list[ModuleDiagnosis]) -> list[ClaimRecord]
             )
         )
     return claims
-
-
-def _module_trace(module_diagnoses: list[ModuleDiagnosis]) -> list[AgentStepRecord]:
-    trace = []
-    for module in module_diagnoses:
-        trace.append(
-            AgentStepRecord(
-                agent_name=f"{module.module_name}_agent",
-                status=module.status,
-                summary=module.summary,
-                evidence_ids=module.evidence_ids,
-                output={
-                    "predicted_fault_type": module.predicted_fault_type,
-                    "predicted_root_module": module.predicted_root_module,
-                    "score": module.score,
-                    "confidence": module.confidence,
-                },
-            )
-        )
-    return trace
 
 
 def _earliest_time_by_ids(metrics: MetricsRecord, evidence_ids: list[str]) -> float | None:

@@ -3,9 +3,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from zhijia_guardian.adapters import ManualAdapter
+from zhijia_guardian.benchmarks.manual_v0_3 import build_manual_v0_3_records
 from zhijia_guardian.experiments.run_eval import run_multi_agent_eval
-from zhijia_guardian.graph import run_diagnosis_graph
+from zhijia_guardian.graph import DiagnosisGraph, run_diagnosis_graph
+from zhijia_guardian.schemas.metrics import MetricsRecord
+from zhijia_guardian.tools.run_metrics import run_all_metrics
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -89,3 +94,86 @@ def test_multi_agent_graph_observed_view_hides_oracle_and_generation(tmp_path):
     _, diagnosis = run_diagnosis_graph(record)
     serialized = diagnosis.model_dump(mode="json")
     assert "oracle" not in json.dumps(serialized)
+
+
+def test_diagnosis_graph_has_explicit_fan_out_fan_in_and_oracle_free_state():
+    record = build_manual_v0_3_records(count=6, seed=7)[0]
+    graph = DiagnosisGraph()
+
+    topology = graph.describe()
+    assert [node["name"] for node in topology] == [
+        "metric_agent",
+        "scene_agent",
+        "perception_agent",
+        "planning_agent",
+        "control_agent",
+        "root_cause_agent",
+    ]
+    assert topology[-1]["stage"] == "fan_in"
+    assert set(topology[-1]["depends_on"]) == {
+        "scene_agent",
+        "perception_agent",
+        "planning_agent",
+        "control_agent",
+    }
+
+    state = graph.initialize_state(record)
+    assert state.scenario.oracle is None
+    assert state.scenario.source.generation == {}
+    assert record.oracle is not None
+    assert record.source.generation
+
+
+def test_diagnosis_graph_trace_matches_node_execution_and_module_availability():
+    record = next(
+        item
+        for item in build_manual_v0_3_records(count=24, seed=42)
+        if item.source.raw_log_id == "perception_like_nuscenes"
+    )
+    state = DiagnosisGraph().invoke(record)
+
+    expected = [
+        "metric_agent",
+        "scene_agent",
+        "perception_agent",
+        "planning_agent",
+        "control_agent",
+        "root_cause_agent",
+    ]
+    assert state.executed_nodes == expected
+    assert [step.agent_name for step in state.trace] == expected
+    assert state.module_diagnoses["planning"].status == "skipped"
+    assert state.module_diagnoses["control"].status == "skipped"
+    assert state.diagnosis is not None
+    assert state.diagnosis.predicted_root_module == record.oracle.root_module
+
+
+def test_diagnosis_graph_temporal_fan_in_recovers_composite_upstream_root():
+    for record in build_manual_v0_3_records(count=72, seed=42):
+        if record.source.generation["difficulty"] != "composite":
+            continue
+        if record.oracle.root_module not in {"perception", "planning"}:
+            continue
+        metrics = run_all_metrics(record)
+        has_control_violation = any(
+            item.metric_name == "brake_delay" and item.status == "violation"
+            for item in metrics.evidence
+        )
+        if not has_control_violation:
+            continue
+
+        state = DiagnosisGraph().invoke(record, metrics)
+        assert state.diagnosis is not None
+        assert state.diagnosis.predicted_fault_type == record.oracle.fault_type
+        assert state.diagnosis.predicted_root_module == record.oracle.root_module
+        assert state.diagnosis.candidate_root_causes[0].root_module == record.oracle.root_module
+        return
+    raise AssertionError("seed 42 should contain an upstream + control-delay composite")
+
+
+def test_diagnosis_graph_rejects_metrics_from_another_scenario():
+    record = build_manual_v0_3_records(count=6, seed=42)[0]
+    metrics = MetricsRecord(scenario_id="another_scenario")
+
+    with pytest.raises(ValueError, match="does not match"):
+        DiagnosisGraph().initialize_state(record, metrics)

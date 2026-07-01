@@ -98,8 +98,13 @@ def _build_record(
     seed: int,
     rng: random.Random,
 ) -> ScenarioRecord:
-    kinematics = _build_kinematics(fault_type, difficulty, rng)
-    risk_time = _first_ttc_risk_time(kinematics)
+    for _ in range(10):
+        kinematics = _build_kinematics(fault_type, difficulty, rng)
+        risk_time = _first_ttc_risk_time(kinematics)
+        if fault_type in {"normal", "perception_false_positive"} or risk_time is not None:
+            break
+    else:
+        raise RuntimeError(f"failed to generate TTC risk timing for {fault_type}")
     fault_time = _resolve_fault_time(fault_type, risk_time, rng)
     frames = _build_frames(
         kinematics=kinematics,
