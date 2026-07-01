@@ -9,6 +9,14 @@ from typing import Any
 
 from zhijia_guardian.experiments.eval_metrics import EvalRow
 from zhijia_guardian.schemas.diagnosis import DiagnosisRecord, EvidenceRecord
+from zhijia_guardian.schemas.failure_sample import (
+    ExpectedDiagnosis,
+    FailureSampleRecord,
+    FailureSampleSource,
+    RecommendedDataRecord,
+    RegressionTestConfig,
+    ScenarioSelector,
+)
 from zhijia_guardian.schemas.scenario import ScenarioRecord
 
 
@@ -19,7 +27,7 @@ def build_failure_sample(
     method: str,
     threshold_config: str = "configs/thresholds.yaml",
     llm_config: str = "configs/llm.yaml",
-) -> dict[str, Any] | None:
+) -> FailureSampleRecord | None:
     should_export = (
         eval_row.true_fault_type != "normal"
         or not eval_row.fault_correct
@@ -37,39 +45,40 @@ def build_failure_sample(
     correct = eval_row.fault_correct and eval_row.root_correct
     source_generation = record.source.generation
 
-    return {
-        "scenario_id": record.scenario_id,
-        "source": {
-            "dataset": record.source.dataset,
-            "version": record.source.version,
-            "raw_log_id": record.source.raw_log_id,
-            "raw_tokens": record.source.raw_tokens,
-        },
-        "predicted_fault_type": eval_row.pred_fault_type,
-        "predicted_root_module": eval_row.pred_root_module,
-        "predicted_fault_start_time": eval_row.pred_fault_start_time,
-        "true_fault_type": eval_row.true_fault_type,
-        "true_root_module": eval_row.true_root_module,
-        "true_fault_start_time": eval_row.true_fault_start_time,
-        "is_correct": correct,
-        "confidence": diagnosis.confidence,
-        "evidence": [item.model_dump(mode="json", exclude_none=True) for item in selected_evidence],
-        "wrong_reasoning": _wrong_reasoning(eval_row, evidence_ids),
-        "correct_reasoning": _correct_reasoning(eval_row, selected_evidence),
-        "tags": _tags(eval_row, method, record, source_generation),
-        "recommended_data": _recommended_data(eval_row.true_root_module, eval_row.true_fault_type),
-        "regression_test_config": _regression_test_config(
+    return FailureSampleRecord(
+        scenario_id=record.scenario_id,
+        source=FailureSampleSource(
+            dataset=record.source.dataset,
+            version=record.source.version,
+            raw_log_id=record.source.raw_log_id,
+            raw_tokens=record.source.raw_tokens,
+        ),
+        diagnosis_method=method,
+        predicted_fault_type=eval_row.pred_fault_type,
+        predicted_root_module=eval_row.pred_root_module,
+        predicted_fault_start_time=eval_row.pred_fault_start_time,
+        true_fault_type=eval_row.true_fault_type,
+        true_root_module=eval_row.true_root_module,
+        true_fault_start_time=eval_row.true_fault_start_time,
+        is_correct=correct,
+        confidence=diagnosis.confidence,
+        evidence=selected_evidence,
+        wrong_reasoning=_wrong_reasoning(eval_row, evidence_ids),
+        correct_reasoning=_correct_reasoning(eval_row, selected_evidence),
+        tags=_tags(eval_row, method, record, source_generation),
+        recommended_data=_recommended_data(eval_row.true_root_module, eval_row.true_fault_type),
+        regression_test_config=_regression_test_config(
             eval_row=eval_row,
             record=record,
             method=method,
             threshold_config=threshold_config,
             llm_config=llm_config,
         ),
-        "scenario_record_hash": scenario_record_hash(record),
-    }
+        scenario_record_hash=scenario_record_hash(record),
+    )
 
 
-def write_failure_sample_package(run_dir: Path, samples: list[dict[str, Any]]) -> None:
+def write_failure_sample_package(run_dir: Path, samples: list[FailureSampleRecord]) -> None:
     failure_root = run_dir / "failure_samples"
     tables_dir = run_dir / "tables"
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -79,13 +88,13 @@ def write_failure_sample_package(run_dir: Path, samples: list[dict[str, Any]]) -
     failure_root.mkdir(parents=True, exist_ok=True)
 
     for sample in samples:
-        package_dir = failure_root / str(sample["scenario_id"])
+        package_dir = failure_root / sample.scenario_id
         package_dir.mkdir(parents=True, exist_ok=True)
         _write_json(sample, package_dir / "failure_sample.json")
 
     with (run_dir / "failure_samples.jsonl").open("w", encoding="utf-8") as f:
         for sample in samples:
-            f.write(json.dumps(sample, ensure_ascii=False, sort_keys=True))
+            f.write(json.dumps(sample.model_dump(mode="json", exclude_none=True), ensure_ascii=False, sort_keys=True))
             f.write("\n")
 
     _write_failure_samples_csv(samples, tables_dir / "failure_samples.csv")
@@ -183,7 +192,7 @@ def _tags(
     return tags
 
 
-def _recommended_data(root_module: str, fault_type: str) -> list[dict[str, str]]:
+def _recommended_data(root_module: str, fault_type: str) -> list[RecommendedDataRecord]:
     common = [
         {
             "name": "canonical_observed_scenario",
@@ -239,7 +248,10 @@ def _recommended_data(root_module: str, fault_type: str) -> list[dict[str, str]]
         "reason": "Slice data around the oracle fault start time for regression and annotation review.",
         "priority": "high",
     }
-    return common + by_root.get(root_module, []) + [fault_specific]
+    return [
+        RecommendedDataRecord.model_validate(item)
+        for item in common + by_root.get(root_module, []) + [fault_specific]
+    ]
 
 
 def _regression_test_config(
@@ -248,30 +260,26 @@ def _regression_test_config(
     method: str,
     threshold_config: str,
     llm_config: str,
-) -> dict[str, Any]:
-    return {
-        "scenario_selector": {
-            "scenario_id": record.scenario_id,
-            "dataset": record.source.dataset,
-            "version": record.source.version,
-            "raw_log_id": record.source.raw_log_id,
-        },
-        "diagnosis_input": "observed_view_only",
-        "method_under_test": method,
-        "threshold_config": threshold_config,
-        "llm_config": llm_config,
-        "expected": {
-            "fault_type": eval_row.true_fault_type,
-            "root_module": eval_row.true_root_module,
-            "fault_start_time": eval_row.true_fault_start_time,
-        },
-        "tolerances": {
-            "fault_start_time_abs_error_s": 0.5,
-        },
-    }
+) -> RegressionTestConfig:
+    return RegressionTestConfig(
+        scenario_selector=ScenarioSelector(
+            scenario_id=record.scenario_id,
+            dataset=record.source.dataset,
+            version=record.source.version,
+            raw_log_id=record.source.raw_log_id,
+        ),
+        method_under_test=method,
+        threshold_config=threshold_config,
+        llm_config=llm_config,
+        expected=ExpectedDiagnosis(
+            fault_type=eval_row.true_fault_type,
+            root_module=eval_row.true_root_module,
+            fault_start_time=eval_row.true_fault_start_time,
+        ),
+    )
 
 
-def _write_failure_samples_csv(samples: list[dict[str, Any]], path: Path) -> None:
+def _write_failure_samples_csv(samples: list[FailureSampleRecord], path: Path) -> None:
     fieldnames = [
         "scenario_id",
         "true_fault_type",
@@ -287,23 +295,29 @@ def _write_failure_samples_csv(samples: list[dict[str, Any]], path: Path) -> Non
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for sample in samples:
-            scenario_id = str(sample["scenario_id"])
+            scenario_id = sample.scenario_id
             writer.writerow(
                 {
                     "scenario_id": scenario_id,
-                    "true_fault_type": sample["true_fault_type"],
-                    "predicted_fault_type": sample["predicted_fault_type"],
-                    "true_root_module": sample["true_root_module"],
-                    "predicted_root_module": sample["predicted_root_module"],
-                    "is_correct": sample["is_correct"],
+                    "true_fault_type": sample.true_fault_type,
+                    "predicted_fault_type": sample.predicted_fault_type,
+                    "true_root_module": sample.true_root_module,
+                    "predicted_root_module": sample.predicted_root_module,
+                    "is_correct": sample.is_correct,
                     "package_path": f"failure_samples/{scenario_id}/failure_sample.json",
-                    "scenario_record_hash": sample["scenario_record_hash"],
-                    "tags": ";".join(sample["tags"]),
+                    "scenario_record_hash": sample.scenario_record_hash,
+                    "tags": ";".join(sample.tags),
                 }
             )
 
 
-def _write_json(data: dict[str, Any], path: Path) -> None:
+def _write_json(data: FailureSampleRecord, path: Path) -> None:
     with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
+        json.dump(
+            data.model_dump(mode="json", exclude_none=True),
+            f,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
         f.write("\n")

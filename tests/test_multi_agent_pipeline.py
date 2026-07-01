@@ -62,6 +62,8 @@ def test_multi_agent_demo_eval_outputs_trace_and_evidence(tmp_path):
     failure_sample_path = run_dir / "failure_samples" / "manual_v0_1_000001" / "failure_sample.json"
     assert failure_sample_path.exists()
     failure_sample = json.loads(failure_sample_path.read_text(encoding="utf-8"))
+    assert failure_sample["schema_version"] == "failure_sample_v1"
+    assert failure_sample["oracle_visibility"] == "evaluation_only"
     assert failure_sample["scenario_id"] == "manual_v0_1_000001"
     assert failure_sample["true_fault_type"] == "perception_miss"
     assert failure_sample["recommended_data"]

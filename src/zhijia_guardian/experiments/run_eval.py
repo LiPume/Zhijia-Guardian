@@ -6,7 +6,6 @@ import subprocess
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from zhijia_guardian.adapters import ManualAdapter
 from zhijia_guardian.agents.report_agent import render_markdown_report
@@ -26,6 +25,7 @@ from zhijia_guardian.experiments.failure_sample_builder import (
 from zhijia_guardian.experiments.output_artifacts import write_run_artifacts, write_scenario_artifacts
 from zhijia_guardian.graph import run_diagnosis_graph
 from zhijia_guardian.schemas.diagnosis import DiagnosisRecord
+from zhijia_guardian.schemas.failure_sample import FailureSampleRecord
 from zhijia_guardian.schemas.metrics import MetricsRecord
 from zhijia_guardian.schemas.scenario import ScenarioRecord
 from zhijia_guardian.tools.run_metrics import run_all_metrics
@@ -108,7 +108,7 @@ def run_eval(
         path.mkdir(parents=True, exist_ok=True)
 
     rows: list[EvalRow] = []
-    failure_samples: list[dict[str, Any]] = []
+    failure_samples: list[FailureSampleRecord] = []
     scenario_ids = adapter.list_scenarios()
     if limit is not None:
         scenario_ids = scenario_ids[:limit]

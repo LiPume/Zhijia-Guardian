@@ -48,6 +48,7 @@ class AgentStepRecord(StrictModel):
 
 
 class DiagnosisRecord(StrictModel):
+    schema_version: Literal["diagnosis_v1"] = "diagnosis_v1"
     scenario_id: str
     predicted_fault_type: str | None = None
     predicted_root_module: str | None = None
