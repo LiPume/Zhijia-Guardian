@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -126,3 +129,14 @@ def test_diagnosis_report_has_version_and_stable_section_order():
     assert "`E_CTRL_001`" in report
     assert "## Recommended Actions" in report
     assert "oracle" not in report.lower()
+
+
+def test_exported_json_schemas_match_pydantic_models():
+    contract_dir = Path(__file__).resolve().parents[1] / "docs" / "contracts"
+
+    assert json.loads((contract_dir / "diagnosis_v1.schema.json").read_text()) == (
+        DiagnosisRecord.model_json_schema()
+    )
+    assert json.loads((contract_dir / "failure_sample_v1.schema.json").read_text()) == (
+        FailureSampleRecord.model_json_schema()
+    )

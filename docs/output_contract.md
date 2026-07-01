@@ -42,14 +42,22 @@ directory. The current v0.2 package is stored at
 
 ## Scenario Report
 
-Each `reports/{scenario_id}.md` contains:
+Each `reports/{scenario_id}.md` follows `diagnosis_report_v1`; the paired
+`diagnoses/{scenario_id}.json` follows `diagnosis_v1` and is the machine-readable source of truth. The complete
+section and evidence rules are defined in [diagnosis_report_contract.md](diagnosis_report_contract.md), and the
+JSON Schema is exported to `docs/contracts/diagnosis_v1.schema.json`.
 
-- Summary prediction.
-- BEV and evidence timeline figures.
-- Candidate root causes.
-- Agent trace.
-- Claims with `evidence_ids`.
-- Evidence list.
+The report contains these fixed sections:
+
+1. Metadata.
+2. Diagnosis Summary.
+3. Figures.
+4. Candidate Root Causes.
+5. Evidence Chain.
+6. Claims.
+7. Agent Execution Trace.
+8. Uncertainty And Limitations.
+9. Recommended Actions.
 
 Every claim must reference valid evidence IDs. Diagnosis agents and reports must not read `oracle` or `source.generation`.
 
@@ -90,6 +98,12 @@ The conditional MAE must be read together with its coverage; a method cannot imp
 Failure samples are written only by the evaluation/output stage. They may contain oracle-derived `true_*`
 fields, so diagnosis agents and baselines must never read them.
 
+The formal contract is `failure_sample_v1`, documented in
+[failure_sample_contract.md](failure_sample_contract.md) and exported as
+`docs/contracts/failure_sample_v1.schema.json`. Here, "failure sample" means a safety-critical abnormal sample,
+not only a diagnosis mistake: `is_correct=true` retains a correctly diagnosed abnormal regression case, while
+`is_correct=false` marks a diagnosis error.
+
 Each `failure_samples/{scenario_id}/failure_sample.json` contains:
 
 - `scenario_id`, predicted fault/root/start time, true fault/root/start time, and `is_correct`.
@@ -99,3 +113,6 @@ Each `failure_samples/{scenario_id}/failure_sample.json` contains:
 - `recommended_data` listing follow-up logs or clips an engineer should inspect.
 - `regression_test_config` with observed-only replay input and oracle expectations.
 - `scenario_record_hash`, computed from `ScenarioRecord.observed_view()` only.
+
+`failure_samples.jsonl` and each per-scenario JSON are authoritative typed records. The CSV file is only a compact
+index. Consumers must validate `schema_version` and reject unknown fields.

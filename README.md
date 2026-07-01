@@ -18,9 +18,10 @@
 - Single-LLM baseline，使用去标签化的场景/指标摘要、结构化输出和 evidence 引用校验；默认关闭 API 调用。
 - 显式 Pydantic 多 Agent 图，包含 metric、scene、perception、planning、control fan-out 和 root-cause fan-in；节点输入已物理移除 oracle。
 - `run_id` 级实验输出目录，包含 `run_report.md`、`figures/`、`tables/`、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
+- versioned `diagnosis_v1`、`diagnosis_report_v1` 和 `failure_sample_v1` 输出契约，支持导出 JSON Schema。
 - failure sample package，包含 `failure_samples.jsonl`、`tables/failure_samples.csv` 和 `failure_samples/{scenario_id}/failure_sample.json`。
 - Streamlit 只读工作台，直接读取输出包展示指标、错误样本、BEV、timeline、agent trace 和报告。
-- CARLA 0.9.15 离线故障注入和 15 条 closed-loop benchmark，含 3D RGB 典型案例视频。
+- CARLA 0.9.15 离线故障注入、15 条 closed-loop benchmark 和 12 条极端天气 held-out benchmark，含 3D RGB 典型案例视频。
 - pytest 覆盖 schema、真实 adapter、图状态、复合故障时序、demo eval、manual generator 和无标签泄漏。
 
 暂未完成的部分：
@@ -28,10 +29,13 @@
 - SafeBench 官方 0.9.13 runtime 的真实 rollout；现有 0.9.15 在创建官方场景 actor 时会崩溃，主仓只保留安全 JSON adapter。
 - nuScenes 真实相机/点云模型输出接入；当前仍是 metadata/annotation smoke。
 - 多 seed、更多 CARLA 场景模板和自然事故外部验证。
+- 真实相机/点云 detector 的雨雾夜间退化评估；当前极端天气 benchmark 使用 annotation-derived detections。
 
 ## 项目边界
 
 本项目中的“多 Agent”指诊断 Agent，不指交通环境中的多车、多行人、多路侧设备交互智能体。第一版诊断 Agent 包括场景重建、感知诊断、规划诊断、控制诊断、根因汇总和报告生成。
+
+当前使用显式 Pydantic DAG 编排 typed state、模块 fan-out 和根因 fan-in。LangGraph 暂不作为强依赖；当产品需要人工审核暂停/恢复、持久化 checkpoint、跨进程重试或 time-travel 时，再增加可选 backend。决策见 [docs/orchestration_decision.md](docs/orchestration_decision.md)。
 
 本项目不做以下事情：
 
@@ -466,6 +470,19 @@ planning-fault，共 15 条真实动力学日志。正式 commit `80bacf9`：
 5 条 normal 均无碰撞，5 条控制延迟和 5 条危险规划均产生真实碰撞。Rule-only 将 planning
 fault 误判为 control delay；Multi-Agent 根据危险规划早于控制失效的时间关系恢复根因。完整
 定义见 [docs/carla_closed_loop_v0_1.md](docs/carla_closed_loop_v0_1.md)。
+
+CARLA extreme-weather v0.1 在重雨、浓雾和夜间风暴中各实跑 normal、感知置信度下降、危险规划和
+控制延迟，共 12 条轨迹；`night_storm` 作为完整 held-out test：
+
+| 方法 | Full Macro-F1 | Held-out Macro-F1 | Root Top-1 | Evidence Correctness | Hallucination Rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Multi-Agent + Tools | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
+| Rule-only | 0.3750 | 0.3750 | 0.5000 | 1.0000 | 0.0000 |
+
+规则方法把感知/规划上游故障误判为下游控制延迟；多 Agent 根据更早出现的模块证据恢复根因。
+当前检测结果来自仿真标注，只能证明诊断机制兼容这些天气上下文，不能声称真实视觉模型具备
+极端天气鲁棒性。数据生成命令和限制见
+[docs/carla_extreme_weather_v0_1.md](docs/carla_extreme_weather_v0_1.md)。
 
 注意：旧 manual v0.2 结果仍是 commit `48f0578` 的历史可复现结果。commit `0c7e220` 已完成
 manual v0.3 重建和三方法刷新；当前结果不再混用旧 oracle 与新的首次 TTC 风险时间定义。
