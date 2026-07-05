@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from zhijia_guardian.adapters import NuScenesVisionAdapter
+from zhijia_guardian.benchmarks.nuscenes_vision import summarize_distance_bucket_metrics
 from zhijia_guardian.experiments.run_diagnosis import run_unlabeled_diagnosis
 from zhijia_guardian.graph import run_diagnosis_graph
 from zhijia_guardian.schemas.nuscenes_vision import (
@@ -95,6 +96,34 @@ def test_nuscenes_vision_adapter_preserves_2d_only_detections(tmp_path):
     assert record.frames[0].perception.detections[1].x is None
     assert record.frames[0].planning.available is False
     assert "oracle" not in record.observed_view()
+
+
+def test_nuscenes_vision_adapter_accepts_versioned_side_camera(tmp_path):
+    scenario_id = _write_clip(tmp_path / "clips")
+    path = tmp_path / "clips" / f"{scenario_id}.json"
+    clip = NuScenesVisionClip.model_validate_json(path.read_text())
+    payload = clip.model_dump(mode="json")
+    payload["benchmark_version"] = "v0_2"
+    payload["sensor_channel"] = "CAM_BACK_LEFT"
+    path.write_text(NuScenesVisionClip.model_validate(payload).model_dump_json(indent=2))
+
+    record = NuScenesVisionAdapter(tmp_path / "clips").load_scenario(scenario_id)
+
+    assert record.source.version == "v0_2"
+    assert record.source.raw_tokens["sensor_channel"] == "CAM_BACK_LEFT"
+    assert "CAM_BACK_LEFT" in record.events_observed[0].description
+
+
+def test_distance_bucket_metrics_are_computed_from_world_distance(tmp_path):
+    _write_clip(tmp_path / "clips")
+
+    metrics = summarize_distance_bucket_metrics(tmp_path / "clips")
+
+    near = metrics["aggregate"]["0-20m"]
+    assert near["visible_gt"] == 1
+    assert near["matched"] == 1
+    assert near["annotation_recall"] == 1.0
+    assert metrics["aggregate"]["20-40m"]["visible_gt"] == 0
 
 
 def test_unlabeled_runner_writes_hypotheses_without_accuracy(tmp_path):

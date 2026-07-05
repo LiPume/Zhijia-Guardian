@@ -49,10 +49,18 @@ class NuScenesVisionFrame(StrictModel):
 
 class NuScenesVisionClip(StrictModel):
     schema_version: Literal["nuscenes_vision_clip_v1"] = "nuscenes_vision_clip_v1"
+    benchmark_version: Literal["v0_1", "v0_2"] = "v0_1"
     scenario_id: str
     scene_name: str
     scene_token: str
-    sensor_channel: Literal["CAM_FRONT"] = "CAM_FRONT"
+    sensor_channel: Literal[
+        "CAM_FRONT",
+        "CAM_FRONT_LEFT",
+        "CAM_FRONT_RIGHT",
+        "CAM_BACK",
+        "CAM_BACK_LEFT",
+        "CAM_BACK_RIGHT",
+    ] = "CAM_FRONT"
     detector_name: str
     detector_weights: str
     detector_confidence: float = Field(ge=0.0, le=1.0)

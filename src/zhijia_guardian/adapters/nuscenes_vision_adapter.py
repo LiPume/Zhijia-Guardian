@@ -20,7 +20,7 @@ from zhijia_guardian.schemas.scenario import (
 
 
 class NuScenesVisionAdapter(BaseAdapter):
-    """Read versioned nuScenes CAM_FRONT + detector clip exports."""
+    """Read versioned nuScenes camera + detector clip exports."""
 
     def __init__(self, clip_root: str | Path):
         self.clip_root = Path(clip_root)
@@ -74,7 +74,7 @@ class NuScenesVisionAdapter(BaseAdapter):
             scenario_id=clip.scenario_id,
             source=SourceInfo(
                 dataset="nuscenes_yolo",
-                version="v0_1",
+                version=clip.benchmark_version,
                 raw_log_id=clip.scene_name,
                 raw_tokens={
                     "scene_token": clip.scene_token,
@@ -93,7 +93,10 @@ class NuScenesVisionAdapter(BaseAdapter):
                 EventRecord(
                     event_type="dataset_context",
                     timestamp=0.0,
-                    description="Real nuScenes CAM_FRONT clip with frozen YOLO detector output.",
+                    description=(
+                        f"Real nuScenes {clip.sensor_channel} clip with frozen YOLO "
+                        "detector output."
+                    ),
                     attributes={
                         "scene_name": clip.scene_name,
                         "sensor_channel": clip.sensor_channel,

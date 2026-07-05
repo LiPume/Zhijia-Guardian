@@ -19,7 +19,16 @@ from zhijia_guardian.utils.io import dump_scenario_jsonl
 
 
 DEFAULT_SCENES = ("scene-0103", "scene-0655", "scene-0553", "scene-0796", "scene-1094")
+CAMERA_CHANNELS = (
+    "CAM_FRONT_LEFT",
+    "CAM_FRONT",
+    "CAM_FRONT_RIGHT",
+    "CAM_BACK_LEFT",
+    "CAM_BACK",
+    "CAM_BACK_RIGHT",
+)
 SUPPORTED_CLASSES = {"person", "bicycle", "car", "motorcycle", "bus", "truck"}
+DISTANCE_BUCKETS = (("0-20m", 0.0, 20.0), ("20-40m", 20.0, 40.0), ("40m+", 40.0, math.inf))
 
 
 def build_nuscenes_vision_benchmark(
@@ -35,6 +44,8 @@ def build_nuscenes_vision_benchmark(
     key_actor_max_distance: float = 50.0,
     image_size: int = 640,
     device: str = "0",
+    sensor_channels: tuple[str, ...] = ("CAM_FRONT",),
+    write_mosaic_videos: bool = False,
     clean: bool = False,
 ) -> dict[str, Any]:
     try:
@@ -60,12 +71,16 @@ def build_nuscenes_vision_benchmark(
     tables = _load_tables(metadata_root)
     index = _build_index(tables)
     selected_scenes = _select_scenes(tables["scene"], scene_names)
+    _validate_sensor_channels(sensor_channels)
     frame_specs = []
     for scene in selected_scenes:
-        frame_specs.extend(_scene_frame_specs(scene, index, data_root))
+        for sensor_channel in sensor_channels:
+            frame_specs.extend(
+                _scene_frame_specs(scene, index, data_root, sensor_channel)
+            )
     missing = [str(spec["image_path"]) for spec in frame_specs if not spec["image_path"].is_file()]
     if missing:
-        raise FileNotFoundError(f"missing {len(missing)} CAM_FRONT images; first={missing[0]}")
+        raise FileNotFoundError(f"missing {len(missing)} camera images; first={missing[0]}")
 
     model = YOLO(str(weights))
     results_by_sample_data = {}
@@ -89,9 +104,23 @@ def build_nuscenes_vision_benchmark(
 
     manifest_rows = []
     total = defaultdict(int)
-    for scene_index, scene in enumerate(selected_scenes, start=1):
-        scenario_id = f"nuscenes_real_v0_1_{scene_index:06d}"
-        scene_specs = [spec for spec in frame_specs if spec["scene"]["token"] == scene["token"]]
+    totals_by_camera: dict[str, defaultdict[str, int]] = {
+        channel: defaultdict(int) for channel in sensor_channels
+    }
+    is_legacy_front = sensor_channels == ("CAM_FRONT",)
+    benchmark_version = "v0_1" if is_legacy_front else "v0_2"
+    scenario_prefix = "nuscenes_real_v0_1" if is_legacy_front else "nuscenes_multicam_v0_2"
+    scenario_index = 0
+    for scene in selected_scenes:
+      for sensor_channel in sensor_channels:
+        scenario_index += 1
+        scenario_id = f"{scenario_prefix}_{scenario_index:06d}"
+        scene_specs = [
+            spec
+            for spec in frame_specs
+            if spec["scene"]["token"] == scene["token"]
+            and spec["sensor_channel"] == sensor_channel
+        ]
         first_timestamp = scene_specs[0]["sample_data"]["timestamp"] / 1_000_000.0
         clip_frames = []
         rendered_frames = []
@@ -111,6 +140,7 @@ def build_nuscenes_vision_benchmark(
                 height,
                 key_actor_min_area,
                 key_actor_max_distance,
+                sensor_channel,
                 np,
             )
             detections, _ = _convert_detections(
@@ -119,6 +149,7 @@ def build_nuscenes_vision_benchmark(
                 spec["sample"]["token"],
                 model.names,
                 association_iou,
+                sensor_channel,
             )
             matched_actor_ids = {det.matched_gt_id for det in detections if det.matched_gt_id}
             class_correct = sum(
@@ -143,6 +174,7 @@ def build_nuscenes_vision_benchmark(
             for key, value in frame_metrics.model_dump().items():
                 scene_total[key] += value
                 total[key] += value
+                totals_by_camera[sensor_channel][key] += value
             timestamp = spec["sample_data"]["timestamp"] / 1_000_000.0 - first_timestamp
             clip_frames.append(
                 NuScenesVisionFrame(
@@ -168,6 +200,7 @@ def build_nuscenes_vision_benchmark(
                 actors,
                 detections,
                 scene["name"],
+                sensor_channel,
                 frame_index,
                 frame_metrics,
             )
@@ -177,9 +210,11 @@ def build_nuscenes_vision_benchmark(
             cv2.imwrite(str(target), rendered)
 
         clip = NuScenesVisionClip(
+            benchmark_version=benchmark_version,
             scenario_id=scenario_id,
             scene_name=scene["name"],
             scene_token=scene["token"],
+            sensor_channel=sensor_channel,
             detector_name=f"ultralytics:{weights.stem}",
             detector_weights=str(weights),
             detector_confidence=confidence,
@@ -194,6 +229,7 @@ def build_nuscenes_vision_benchmark(
             {
                 "scenario_id": scenario_id,
                 "scene_name": scene["name"],
+                "sensor_channel": sensor_channel,
                 "num_frames": len(clip_frames),
                 "clip_path": str(clip_path.relative_to(output_root)),
                 "video_path": str(video_path.relative_to(output_root)),
@@ -201,14 +237,31 @@ def build_nuscenes_vision_benchmark(
             }
         )
 
+    mosaic_videos = []
+    if write_mosaic_videos:
+        if set(sensor_channels) != set(CAMERA_CHANNELS):
+            raise ValueError("mosaic output requires all six nuScenes camera channels")
+        mosaic_videos = _write_mosaic_videos(
+            cv2,
+            frame_root,
+            video_root,
+            manifest_rows,
+            selected_scenes,
+            fps=2.0,
+        )
+
     adapter = NuScenesVisionAdapter(clip_root)
     records = [adapter.load_scenario(scenario_id) for scenario_id in adapter.list_scenarios()]
     dump_scenario_jsonl(records, canonical_root / "scenarios.jsonl")
     manifest = {
-        "dataset": "nuscenes_real_cam_front_yolo_v0_1",
+        "dataset": (
+            "nuscenes_real_cam_front_yolo_v0_1"
+            if is_legacy_front
+            else "nuscenes_real_six_camera_yolo_v0_2"
+        ),
         "source_dataset": "nuScenes mini v1.0",
         "oracle_available": False,
-        "sensor_channel": "CAM_FRONT",
+        "sensor_channels": list(sensor_channels),
         "detector": f"ultralytics:{weights.stem}",
         "weights": str(weights),
         "confidence_threshold": confidence,
@@ -220,6 +273,12 @@ def build_nuscenes_vision_benchmark(
             "they are not fault labels and no fault/root accuracy is computed."
         ),
         "aggregate_metrics": _summary_metrics(total),
+        "per_camera_metrics": {
+            channel: _summary_metrics(values)
+            for channel, values in totals_by_camera.items()
+        },
+        "distance_bucket_metrics": summarize_distance_bucket_metrics(clip_root),
+        "mosaic_videos": mosaic_videos,
         "scenarios": manifest_rows,
     }
     _write_json(manifest, output_root / "manifest.json")
@@ -264,17 +323,33 @@ def _select_scenes(rows: list[dict[str, Any]], names: tuple[str, ...]) -> list[d
     return [by_name[name] for name in names]
 
 
-def _scene_frame_specs(scene: dict[str, Any], index: dict[str, Any], data_root: Path) -> list[dict[str, Any]]:
+def _validate_sensor_channels(sensor_channels: tuple[str, ...]) -> None:
+    if not sensor_channels:
+        raise ValueError("at least one sensor channel is required")
+    invalid = sorted(set(sensor_channels) - set(CAMERA_CHANNELS))
+    if invalid:
+        raise ValueError(f"unsupported nuScenes camera channels: {invalid}")
+    if len(set(sensor_channels)) != len(sensor_channels):
+        raise ValueError("sensor channels must be unique")
+
+
+def _scene_frame_specs(
+    scene: dict[str, Any],
+    index: dict[str, Any],
+    data_root: Path,
+    sensor_channel: str,
+) -> list[dict[str, Any]]:
     rows = []
     sample_token = scene["first_sample_token"]
     while sample_token:
         sample = index["sample"][sample_token]
-        sample_data = _camera_sample_data(sample_token, index)
+        sample_data = _camera_sample_data(sample_token, index, sensor_channel)
         rows.append(
             {
                 "scene": scene,
                 "sample": sample,
                 "sample_data": sample_data,
+                "sensor_channel": sensor_channel,
                 "image_path": data_root / sample_data["filename"],
             }
         )
@@ -282,13 +357,17 @@ def _scene_frame_specs(scene: dict[str, Any], index: dict[str, Any], data_root: 
     return rows
 
 
-def _camera_sample_data(sample_token: str, index: dict[str, Any]) -> dict[str, Any]:
+def _camera_sample_data(
+    sample_token: str,
+    index: dict[str, Any],
+    sensor_channel: str,
+) -> dict[str, Any]:
     for row in index["sample_data"][sample_token]:
         calibrated = index["calibrated_sensor"][row["calibrated_sensor_token"]]
         sensor = index["sensor"][calibrated["sensor_token"]]
-        if row["is_key_frame"] and sensor["channel"] == "CAM_FRONT":
+        if row["is_key_frame"] and sensor["channel"] == sensor_channel:
             return row
-    raise KeyError(f"CAM_FRONT key frame missing for {sample_token}")
+    raise KeyError(f"{sensor_channel} key frame missing for {sample_token}")
 
 
 def _project_actors(
@@ -300,6 +379,7 @@ def _project_actors(
     image_height: int,
     key_min_area: float,
     key_max_distance: float,
+    sensor_channel: str,
     np,
 ) -> list[ActorState]:
     actors = []
@@ -336,7 +416,7 @@ def _project_actors(
                 height=size[2],
                 is_key_actor=area >= key_min_area and distance <= key_max_distance,
                 sensor_bbox_xyxy=bbox,
-                sensor_channel="CAM_FRONT",
+                sensor_channel=sensor_channel,
             )
         )
     return actors
@@ -387,7 +467,14 @@ def _rotation_matrix(quaternion, np):
     )
 
 
-def _convert_detections(result, actors, sample_token, names, iou_threshold):
+def _convert_detections(
+    result,
+    actors,
+    sample_token,
+    names,
+    iou_threshold,
+    sensor_channel,
+):
     raw = []
     if result.boxes is not None:
         for index, (box, class_id, confidence) in enumerate(
@@ -443,7 +530,7 @@ def _convert_detections(result, actors, sample_token, names, iou_threshold):
                 width=actor.width if actor is not None else 0.0,
                 matched_gt_id=actor.actor_id if actor is not None else None,
                 bbox_xyxy=item["bbox"],
-                sensor_channel="CAM_FRONT",
+                sensor_channel=sensor_channel,
                 model_class=item["type"],
                 association_iou=iou,
             )
@@ -481,7 +568,16 @@ def normalize_category(category: str) -> str | None:
     return mapping.get(category)
 
 
-def _render_frame(cv2, image, actors, detections, scene_name, frame_index, metrics):
+def _render_frame(
+    cv2,
+    image,
+    actors,
+    detections,
+    scene_name,
+    sensor_channel,
+    frame_index,
+    metrics,
+):
     matched_actor_ids = {detection.matched_gt_id for detection in detections if detection.matched_gt_id}
     for actor in actors:
         x1, y1, x2, y2 = map(int, actor.sensor_bbox_xyxy)
@@ -493,7 +589,7 @@ def _render_frame(cv2, image, actors, detections, scene_name, frame_index, metri
         color = (220, 160, 20) if detection.matched_gt_id else (20, 160, 230)
         cv2.rectangle(image, (x1, y1), (x2, y2), color, 1)
         cv2.putText(image, f"Y {detection.type} {detection.confidence:.2f}", (x1, min(image.shape[0] - 4, y2 + 14)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
-    banner = f"{scene_name} frame={frame_index:03d} GT={metrics.visible_gt} det={metrics.detections} match={metrics.matched} FP={metrics.false_positives} key_miss={metrics.missed_key_actors}"
+    banner = f"{scene_name} {sensor_channel} frame={frame_index:03d} GT={metrics.visible_gt} det={metrics.detections} match={metrics.matched} FP={metrics.false_positives} key_miss={metrics.missed_key_actors}"
     cv2.rectangle(image, (0, 0), (image.shape[1], 34), (0, 0, 0), -1)
     cv2.putText(image, banner, (12, 23), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 1, cv2.LINE_AA)
     return image
@@ -511,6 +607,72 @@ def _write_video(cv2, frames, path: Path, fps: float) -> None:
         writer.release()
 
 
+def _write_mosaic_videos(
+    cv2,
+    frame_root: Path,
+    video_root: Path,
+    manifest_rows: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+    *,
+    fps: float,
+) -> list[dict[str, Any]]:
+    import numpy as np
+
+    by_scene_camera = {
+        (row["scene_name"], row["sensor_channel"]): row for row in manifest_rows
+    }
+    outputs = []
+    tile_size = (640, 360)
+    output_size = (tile_size[0] * 3, tile_size[1] * 2)
+    for scene in scenes:
+        rows = [by_scene_camera[(scene["name"], channel)] for channel in CAMERA_CHANNELS]
+        num_frames = min(row["num_frames"] for row in rows)
+        path = video_root / f"{scene['name']}_six_camera_mosaic.mp4"
+        writer = cv2.VideoWriter(
+            str(path),
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            fps,
+            output_size,
+        )
+        if not writer.isOpened():
+            raise RuntimeError(f"cannot create video {path}")
+        try:
+            for frame_index in range(num_frames):
+                tiles = []
+                for channel, row in zip(CAMERA_CHANNELS, rows):
+                    source = frame_root / row["scenario_id"] / f"{frame_index:04d}.jpg"
+                    frame = cv2.imread(str(source))
+                    if frame is None:
+                        raise FileNotFoundError(source)
+                    tile = cv2.resize(frame, tile_size, interpolation=cv2.INTER_AREA)
+                    cv2.rectangle(tile, (0, 0), (205, 27), (0, 0, 0), -1)
+                    cv2.putText(
+                        tile,
+                        channel,
+                        (8, 19),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.52,
+                        (255, 255, 255),
+                        1,
+                        cv2.LINE_AA,
+                    )
+                    tiles.append(tile)
+                writer.write(
+                    np.vstack((np.hstack(tiles[:3]), np.hstack(tiles[3:])))
+                )
+        finally:
+            writer.release()
+        outputs.append(
+            {
+                "scene_name": scene["name"],
+                "num_frames": num_frames,
+                "video_path": str(path.relative_to(video_root.parent.parent)),
+                "layout": [list(CAMERA_CHANNELS[:3]), list(CAMERA_CHANNELS[3:])],
+            }
+        )
+    return outputs
+
+
 def _summary_metrics(values: dict[str, int]) -> dict[str, float | int]:
     visible = values["visible_gt"]
     detections = values["detections"]
@@ -525,6 +687,70 @@ def _summary_metrics(values: dict[str, int]) -> dict[str, float | int]:
         "key_actor_recall": (
             round(values["matched_key_actors"] / values["key_actors"], 6)
             if values["key_actors"]
+            else 0.0
+        ),
+    }
+
+
+def summarize_distance_bucket_metrics(clip_root: str | Path) -> dict[str, Any]:
+    totals: dict[str, defaultdict[str, int]] = {
+        label: defaultdict(int) for label, _, _ in DISTANCE_BUCKETS
+    }
+    per_camera: dict[str, dict[str, defaultdict[str, int]]] = defaultdict(
+        lambda: {
+            label: defaultdict(int) for label, _, _ in DISTANCE_BUCKETS
+        }
+    )
+    for path in sorted(Path(clip_root).glob("*.json")):
+        clip = NuScenesVisionClip.model_validate_json(path.read_text(encoding="utf-8"))
+        for frame in clip.frames:
+            matched_ids = {
+                detection.matched_gt_id
+                for detection in frame.detections
+                if detection.matched_gt_id is not None
+            }
+            for actor in frame.actors_gt:
+                distance = math.hypot(actor.x - frame.ego.x, actor.y - frame.ego.y)
+                label = _distance_bucket(distance)
+                for target in (totals[label], per_camera[clip.sensor_channel][label]):
+                    target["visible_gt"] += 1
+                    target["matched"] += int(actor.actor_id in matched_ids)
+                    target["key_actors"] += int(actor.is_key_actor)
+                    target["matched_key_actors"] += int(
+                        actor.is_key_actor and actor.actor_id in matched_ids
+                    )
+    return {
+        "aggregate": {
+            label: _distance_summary(values) for label, values in totals.items()
+        },
+        "per_camera": {
+            channel: {
+                label: _distance_summary(values)
+                for label, values in buckets.items()
+            }
+            for channel, buckets in per_camera.items()
+        },
+    }
+
+
+def _distance_bucket(distance: float) -> str:
+    for label, lower, upper in DISTANCE_BUCKETS:
+        if lower <= distance < upper:
+            return label
+    raise ValueError(f"invalid actor distance: {distance}")
+
+
+def _distance_summary(values: dict[str, int]) -> dict[str, float | int]:
+    visible = values["visible_gt"]
+    key_actors = values["key_actors"]
+    return {
+        **dict(values),
+        "annotation_recall": (
+            round(values["matched"] / visible, 6) if visible else 0.0
+        ),
+        "key_actor_recall": (
+            round(values["matched_key_actors"] / key_actors, 6)
+            if key_actors
             else 0.0
         ),
     }
