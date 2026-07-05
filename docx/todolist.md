@@ -9,7 +9,7 @@
 1. 开发环境直接使用 `yolo`，不再新建主环境 `car`。
 2. 代码仓库：`/home/lzx/Zhijia-Guardian`。
 3. 大数据根目录：`/data5/lzx_data/Zhijia-Guardian`。
-4. 手工数据、真实数据 adapter、nuPlan 扰动、CARLA 闭环、极端天气 held-out 和 nuScenes 真实前视 detector 均已跑通；下一阶段做多相机/LiDAR 与多 seed 验证。
+4. 手工数据、真实数据 adapter、nuPlan 扰动、CARLA 闭环、极端天气 held-out 和 nuScenes 真实六相机 2D detector 均已跑通；下一阶段做 LiDAR/相机 3D 融合与自然事故外部验证。
 5. 主仓自建轻量诊断框架，不直接套用 SafeBench、DriveLM、carla_garage 等大仓库。
 6. 外部框架后续放 `/data5/lzx_data/Zhijia-Guardian/third_party/`，主仓只写 adapter。
 7. 手工样本必须是真实数据兼容的 Canonical Scenario 轻量模拟器，不允许另起玩具格式。
@@ -646,7 +646,8 @@ Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持
 - [x] 5 个真实片段均完成 prepare-only 输入校验，每段均匀抽 8 帧，未调用 API。
 - [ ] 配置 `DASHSCOPE_API_KEY` 后各跑 1 个 direct/tools smoke，检查 token、延迟、JSON 合规和视觉幻觉。
 - [ ] 增加人工视觉复核表后，比较 Direct-VLM、VLM+Tools 和当前 YOLO+Tools 的真实场景 usefulness。
-- [ ] nuScenes 多相机/LiDAR 3D detector：替换当前单前视 COCO detector，并做距离分桶召回。
+- [x] nuScenes 六相机 2D detector：2 个真实 scene、12 个相机片段、486 帧，完成逐相机汇总、距离分桶召回和六视角 H.264 demo。
+- [ ] nuScenes LiDAR/相机融合 3D detector：替换当前独立 2D COCO detector，增加 3D mAP/NDS 和深度误差；不把六相机独立推理称为融合。
 - [ ] DeepAccident mini：调研下载 20 个 accident/normal 场景，作为事故检测和 failure sample adapter 候选。
 - [ ] DoTA/DADA：只作为 accident/anomaly 时间定位补充，不作为 root_module 诊断主数据。
 - [ ] DriveLM：借鉴图式问答模板，不作为第一版主数据集。

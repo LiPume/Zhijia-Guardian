@@ -1,2 +1,3 @@
 dataset,num_scenarios,num_frames,detector,annotation_recall,key_actor_recall,detection_precision,matched_class_accuracy,fault_oracle_available,diagnosis_hypothesis
 nuscenes_real_cam_front_yolo_v0_1,5,202,ultralytics:yolov8n,0.470564,0.539057,0.724759,0.929015,False,perception_miss (5/5 clips; not accuracy)
+nuscenes_real_six_camera_yolo_v0_2,12,486,ultralytics:yolov8n,0.484546,0.552501,0.717449,0.941975,False,perception_miss (12/12 clips; not accuracy)

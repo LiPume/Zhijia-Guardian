@@ -10,7 +10,7 @@
 
 - Canonical `ScenarioRecord` schema，包含 `source/meta/frames/events_observed/oracle`。
 - `observed_view()` 与 `oracle` 隔离，诊断路径不能读取标签。
-- `ManualAdapter`、nuScenes metadata/真实 CAM_FRONT YOLO adapter、nuPlan SQLite 5-scenario smoke adapter。
+- `ManualAdapter`、nuScenes metadata/真实六相机 YOLO adapter、nuPlan SQLite 5-scenario smoke adapter。
 - 6 个 canonical demo 场景生成脚本。
 - 真实数据兼容的 noisy manual 场景生成脚本。
 - TTC、碰撞、感知异常、规划风险、控制延迟等指标工具。
@@ -22,14 +22,14 @@
 - failure sample package，包含 `failure_samples.jsonl`、`tables/failure_samples.csv` 和 `failure_samples/{scenario_id}/failure_sample.json`。
 - Streamlit 只读工作台，直接读取输出包展示指标、错误样本、BEV、timeline、agent trace 和报告。
 - CARLA 0.9.15 离线故障注入、15 条 closed-loop benchmark 和 12 条极端天气 held-out benchmark，含 3D RGB 典型案例视频。
-- nuScenes mini 5 个真实道路场景、202 张前视关键帧的 YOLOv8n 推理、公开标注投影关联和无 oracle 多 Agent 诊断。
+- nuScenes mini 真实道路场景六相机 YOLOv8n 推理、公开标注投影关联、距离分桶指标和无 oracle 多 Agent 诊断。
 - 可选 Qwen3.7-Plus Visual Review Agent，支持纯原图 `direct_vlm` 与原图加去标签 evidence 的 `vlm_with_tools` 两条旁路实验。
 - pytest 覆盖 schema、真实 adapter、图状态、复合故障时序、demo eval、manual generator 和无标签泄漏。
 
 暂未完成的部分：
 
 - SafeBench 官方 0.9.13 runtime 的真实 rollout；现有 0.9.15 在创建官方场景 actor 时会崩溃，主仓只保留安全 JSON adapter。
-- nuScenes LiDAR/多相机融合模型输出；当前已完成单前视相机 YOLOv8n。
+- nuScenes LiDAR/相机融合 3D detector；当前已完成六相机独立 2D YOLOv8n，不声称已做传感器融合。
 - 多 seed、更多 CARLA 场景模板和自然事故外部验证。
 - 真实相机/点云 detector 的雨雾夜间退化评估；当前极端天气 benchmark 使用 annotation-derived detections。
 
@@ -336,6 +336,21 @@ conda run -n yolo python experiments/run_diagnosis.py \
 限制见 [docs/nuscenes_real_yolo_v0_1.md](docs/nuscenes_real_yolo_v0_1.md)，H.264 视频位于
 [`demo/real_nuscenes/`](demo/real_nuscenes/)。
 
+运行 nuScenes 六相机真实场景 detector、距离分桶评估和同步视频：
+
+```bash
+conda run -n yolo python scripts/run_nuscenes_multicamera_benchmark.py --clean
+
+conda run -n yolo python experiments/run_diagnosis.py \
+  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/nuscenes_mini/yolo_multicam_v0_2/canonical/scenarios.jsonl \
+  --run-id nuscenes_real_multicam_v0_2_multi_agent \
+  --method multi_agent_tools
+```
+
+默认抽取两个真实 scene 的六路相机，共 12 个 canonical 片段。结果说明见
+[docs/nuscenes_real_multicam_v0_2.md](docs/nuscenes_real_multicam_v0_2.md)，H.264 六视角视频位于
+[`demo/real_nuscenes_multicam/`](demo/real_nuscenes_multicam/)。
+
 让 Qwen3.7-Plus 直接复核真实原始帧：
 
 ```bash
@@ -450,7 +465,7 @@ streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501
 ## 当前实验结果
 
 完整实验流程、五 seed 稳定性、时序因果消融、CARLA/nuPlan/nuScenes 分层结果、延迟和有效性威胁见
-[docs/experiment_analysis_report.md](docs/experiment_analysis_report.md)。机器可读表格位于
+[docs/完整实验分析报告.md](docs/完整实验分析报告.md)。机器可读表格位于
 [`docs/tables/`](docs/tables/)。
 
 三种方法已在完全相同的 72 个 manual v0.3 场景、seed 42 和 commit `0c7e220` 上完成统一评估：
@@ -529,6 +544,13 @@ recall `0.4706`、50 米内较大关键目标 recall `0.5391`、detection precis
 Control Agent 因真实字段缺失而跳过。由于 nuScenes 没有系统故障根因 oracle，这组结果不计算
 Fault Macro-F1，也不声称“5/5 诊断正确”。完整说明见
 [docs/nuscenes_real_yolo_v0_1.md](docs/nuscenes_real_yolo_v0_1.md)。
+
+nuScenes six-camera YOLO v0.2 在 2 个真实道路 scene 的 486 张关键帧上进一步得到：annotation
+recall `0.4845`、关键目标 recall `0.5525`、detection precision `0.7174`、匹配类别准确率
+`0.9420`。距离分桶 recall 从 0-20m 的 `0.7261` 降至 40m+ 的 `0.2782`，说明诊断证据受真实
+感知距离退化显著影响。12 个“场景×相机”片段均进入同一多 Agent 链路；该结果仍无 fault oracle，
+不计算根因准确率。完整说明见
+[docs/nuscenes_real_multicam_v0_2.md](docs/nuscenes_real_multicam_v0_2.md)。
 
 注意：旧 manual v0.2 结果仍是 commit `48f0578` 的历史可复现结果。commit `0c7e220` 已完成
 manual v0.3 重建和三方法刷新；当前结果不再混用旧 oracle 与新的首次 TTC 风险时间定义。
