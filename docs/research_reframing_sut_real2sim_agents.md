@@ -131,6 +131,9 @@ CARLA actor truth 记录为 `world_reference`，只在白盒诊断和 evaluator 
 
 ## 6. Agent 到底有没有必要
 
+> 2026-07-05 后续修订：本节对旧架构的判断仍成立，但新的 Agent 定义已扩展为 hypothesis、主动取证、
+> Critic、Counterfactual、Optimization 和 Validation 闭环，详见 `docs/agent_redefinition_v2.md`。
+
 当前实现不是开放式 Agent。`DiagnosisGraph` 固定执行 Metric、Scene、Perception、Planning、Control、Root
 Cause；模块内部仍是确定性 evidence scoring。因此它已经接近“一整套写死流程”，只是把不同模块分成
 有 typed contract 的节点。
