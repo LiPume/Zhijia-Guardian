@@ -1,15 +1,16 @@
 # 智驾卫士实现计划与 Todo
 
-更新时间：2026-07-01
+更新时间：2026-07-05
 
-本 Todo 以 `/home/lzx/Zhijia-Guardian/docx/design.md` 的“0. 最终落地修订版”为准。
+本 Todo 以 `/home/lzx/Zhijia-Guardian/docx/design.md` 为基础，并以
+`docs/research_reframing_sut_real2sim_agents.md` 的 2026-07-05 边界修订为最高优先级；两者冲突时以后者为准。
 
 ## 0. 当前固定决策
 
 1. 开发环境直接使用 `yolo`，不再新建主环境 `car`。
 2. 代码仓库：`/home/lzx/Zhijia-Guardian`。
 3. 大数据根目录：`/data5/lzx_data/Zhijia-Guardian`。
-4. 手工数据、真实数据 adapter、nuPlan 扰动、CARLA 闭环、极端天气 held-out 和 nuScenes 真实六相机 2D detector 均已跑通；下一阶段做 LiDAR/相机 3D 融合与自然事故外部验证。
+4. 手工数据、真实数据 adapter、nuPlan 扰动、CARLA 闭环、极端天气 held-out 和 nuScenes 真实六相机 2D detector 均已跑通；下一阶段先做 SUT provenance 和真实分布校准的 CARLA 参考栈，再做 3D 感知与事故数据扩展。
 5. 主仓自建轻量诊断框架，不直接套用 SafeBench、DriveLM、carla_garage 等大仓库。
 6. 外部框架后续放 `/data5/lzx_data/Zhijia-Guardian/third_party/`，主仓只写 adapter。
 7. 手工样本必须是真实数据兼容的 Canonical Scenario 轻量模拟器，不允许另起玩具格式。
@@ -17,6 +18,11 @@
 9. 从现在开始，每完成一个独立模块必须先跑相关验证，再提交 git commit，方便后续回溯。
 10. MVP 保留显式 Pydantic DAG；只有需要人工中断恢复、持久化 checkpoint、跨进程重试或 time-travel 时才引入可选 LangGraph backend。
 11. 多模态模型先作为 Visual Review sidecar 和 Direct-VLM baseline，不直接覆盖确定性根因结论。
+12. 所有实验必须区分五种 provenance：`world_reference`、`system_under_test`、`reference_monitor`、`diagnosis_system`、`fault_oracle`，任何输出都不能在角色之间覆盖；只有 `fault_oracle` 永远禁止进入诊断。
+13. nuScenes/nuPlan 的原始记录默认是环境与正常驾驶分布，不是“原车自动驾驶故障日志”；没有原始 SUT 中间输出时，不诊断原车模块根因。
+14. 当前 nuScenes YOLO 实验把冻结 YOLO 明确视为“公开基准上的被测感知模型”，只评价该模型，不声称它修复或优于采集车辆的算法。
+15. CARLA 下一阶段必须运行一个明确、版本冻结、可记录 perception/planning/control 输出的参考 SUT；故障注入发生在 SUT 传感器输入或模块边界，诊断器不能替代 SUT 重算答案。
+16. Agent 自由度必须受控：允许按字段覆盖、证据冲突和置信度条件路由工具或进入 `uncertain`，不允许自由改阈值、补造字段或无证据猜根因。
 
 ## 0.1 当前可行性判断与路线收敛
 
@@ -38,6 +44,33 @@
 - [x] DriveLM / DoTA / DADA / Bench2Drive 暂不进 MVP，只作为论文扩展或报告模板参考。
 - [x] 不做 SFT / RLHF / 隐层特征解释，这些会把项目从诊断产品拉偏到大模型训练。
 - [x] 不承诺真实车企 NOA 私有日志，答辩时只说 schema 预留和 adapter 可扩展。
+- [x] nuScenes LiDAR/相机 3D detector 从当前最高优先级后移；它能增强感知 benchmark，但不能解决“缺少原始 SUT 故障日志”的核心问题。
+- [x] Qwen API 大规模实验后移到人工复核集完成之后；没有人工标签时，多模态模型输出只能做案例观察。
+
+## 0.2 关键问题修正：数据、SUT 与 Agent
+
+### 公共数据到底能诊断什么
+
+- [x] nuScenes/nuPlan 用于真实分布校准、schema/adapter、正常样本误报率和被测公开模型评估。
+- [x] DoTA/DADA/RiskBench/DeepAccident 可补事故或风险事件的时间、位置和类别，但不能自动提供原车 `root_module`。
+- [x] 只有同时保留 SUT 模块输入输出、故障注入点和独立 `fault_oracle` 的日志，才能严格评估模块根因诊断。
+- [x] 当前 nuScenes 六相机结果重新解释为“YOLO 作为 perception SUT 的离线失效画像”，不再表述为对采集车辆的诊断。
+
+### 为什么不能用另一个算法把检测重做一遍
+
+- [x] 诊断输入必须优先使用原始 SUT 输出；诊断器只计算一致性、时序、边界和跨模块传播证据。
+- [ ] schema 增加 `producer_role=system_under_test/reference_monitor/world_reference`、`stack_id`、`component_id`、`model_version` 和配置哈希。
+- [ ] reference detector 只能生成 discrepancy evidence，不能覆盖 `perception.detections` 中的 SUT 输出。
+- [ ] 没有 SUT 输出时必须返回 `not_diagnosable` 或限定为 scene/anomaly review，不能给出原车 perception/planning/control 根因。
+- [ ] 定义三种模式：白盒离线诊断可读取显式 `world_reference`，灰盒诊断只读 SUT 模块输出，黑盒诊断只读 ego/events；报告必须标明模式。
+
+### Agent 是否必要
+
+- [x] 当前 Agent 是固定 typed DAG 中的模块诊断函数，不是自主聊天体；流程主体已经是可复现的固定流程。
+- [x] Agent 的合理作用限定为模块所有权、缺字段条件跳过、工具路由、证据隔离、并行诊断和依赖图聚合。
+- [ ] 增加“逻辑等价单体因果流程”baseline：与 Multi-Agent 使用相同 metrics、阈值和时序排序，只取消 Agent/DAG 封装。
+- [ ] 若等价单体流程与 Multi-Agent 精度相同，论文只主张模块化、可追踪和可扩展性，不主张 Agent 天然提升准确率。
+- [ ] 只有在未知日志字段、工具集合扩展、人工复核和多模态按需调用场景中，才增加受约束的动态路由；LangGraph 仍不是效果来源。
 
 ## 1. P0：仓库与环境准备
 
@@ -644,14 +677,101 @@ Single-LLM 分类准确，但幻觉率仍高于 0.10 目标，产品默认保持
 - [x] 真实数据暴露并修复置信度自然波动误诊；manual v0.3、CARLA weather、closed-loop 回归保持 1.0000 Macro-F1。
 - [x] 实现 Qwen3.7-Plus Visual Review Agent：`direct_vlm` 与 `vlm_with_tools` 两种模式。
 - [x] 5 个真实片段均完成 prepare-only 输入校验，每段均匀抽 8 帧，未调用 API。
-- [ ] 配置 `DASHSCOPE_API_KEY` 后各跑 1 个 direct/tools smoke，检查 token、延迟、JSON 合规和视觉幻觉。
+- [ ] 人工复核集完成后，再配置 `DASHSCOPE_API_KEY` 各跑 1 个 direct/tools smoke，检查 token、延迟、JSON 合规和视觉幻觉。
 - [ ] 增加人工视觉复核表后，比较 Direct-VLM、VLM+Tools 和当前 YOLO+Tools 的真实场景 usefulness。
 - [x] nuScenes 六相机 2D detector：2 个真实 scene、12 个相机片段、486 帧，完成逐相机汇总、距离分桶召回和六视角 H.264 demo。
-- [ ] nuScenes LiDAR/相机融合 3D detector：替换当前独立 2D COCO detector，增加 3D mAP/NDS 和深度误差；不把六相机独立推理称为融合。
+- [ ] `P3` nuScenes LiDAR/相机融合 3D detector：在真实 SUT 闭环完成后再做，增加 3D mAP/NDS 和深度误差；不把六相机独立推理称为融合。
 - [ ] DeepAccident mini：调研下载 20 个 accident/normal 场景，作为事故检测和 failure sample adapter 候选。
 - [ ] DoTA/DADA：只作为 accident/anomaly 时间定位补充，不作为 root_module 诊断主数据。
 - [ ] DriveLM：借鉴图式问答模板，不作为第一版主数据集。
 - [ ] Bench2Drive/carla_garage：作为论文增强，不进入 MVP。
+
+## 16.1 P6.1：SUT Provenance 与可诊断性边界
+
+目标：先回答“诊断的是谁”，再计算根因。当前最高优先级。
+
+- [ ] 新增 `SystemUnderTestInfo`：`stack_id/version/git_commit/config_hash`。
+- [ ] 每个 perception/planning/control 输出新增 `producer_role`、`component_id`、`model_version`。
+- [ ] Canonical schema 同时容纳但严格分开：`world_reference`、`sut_outputs`、`reference_outputs`、`fault_oracle`。
+- [ ] adapter 明确诊断模式与降级状态：`white_box_offline`、`gray_box_stack`、`black_box_event`、`scene_only`。
+- [ ] 更新 coverage tool：报告哪些模块有真实 SUT 输出、哪些只有 annotation/reference。
+- [ ] 更新报告模板：首段固定写“被测系统、诊断模式、可诊断模块、不可诊断模块、world reference 和 fault oracle 来源”。
+- [ ] 迁移现有数据 provenance：manual/CARLA 为 synthetic SUT，nuPlan perturbation 为 perturbed planner SUT，nuScenes YOLO 为 benchmark perception SUT。
+- [ ] 增加防混淆测试：reference output 不能写入或覆盖 SUT output；diagnosis 不能把 reference 更好解释为 SUT 已被修复。
+
+验收标准：
+
+- [ ] 每个 run 都能回答“故障发生在哪个明确版本的 SUT”。
+- [ ] 缺少原始车端 SUT 输出的 nuScenes 场景不会生成“原车 perception 根因”结论。
+- [ ] 同一帧可同时保留 world reference、SUT 和 reference monitor，fault oracle 独立保存，四者 ID/provenance 可审计。
+
+## 16.2 P6.2：真实分布校准的 CARLA 参考 SUT 闭环
+
+目标：不是让 CARLA 逐像素模仿 nuScenes，而是从真实数据提取场景统计，实例化可重复的等价闭环场景。
+
+### A. 真实场景参数提取
+
+- [ ] 从 nuScenes/nuPlan 提取场景描述符：ego speed、相对速度、headway、TTC、actor density、横向偏移、道路曲率、目标尺寸/遮挡、昼夜和天气上下文。
+- [ ] 保存 `real_scenario_profile_v1`，保留来源 scene/sample token，但不携带 fault label。
+- [ ] 为 CARLA 建立字段映射和可实现范围；地图拓扑无法对应时只匹配统计量，不声称精确 replay。
+- [ ] 计算 real/sim 分布差异：覆盖率、分位数误差，必要时增加 Wasserstein/KS 指标。
+
+### B. 明确的参考 SUT
+
+- [ ] 冻结一个轻量参考栈及版本：CARLA RGB/Depth 或 LiDAR -> perception SUT -> 简单轨迹 planner -> PID controller。
+- [ ] perception SUT 必须读取真实传感器帧；CARLA actor truth 记录为 `world_reference`，只在白盒诊断/evaluator 使用，不能伪装成 SUT detection。
+- [ ] planner 必须输出实际被执行的 trajectory，controller 必须输出实际 throttle/brake/steer。
+- [ ] healthy run 先通过任务成功率门槛，再生成 fault pair；健康栈自己频繁失败的父场景不得进入根因 benchmark。
+
+### C. 成对故障与反事实 oracle
+
+- [ ] 区分外部挑战和内部故障：危险 cut-in/行人横穿属于 environment hazard；丢帧、漏检、stale trajectory、制动延迟才属于 system fault。
+- [ ] 同一 seed/scenario 运行 healthy 与 faulty pair，只改变一个注入变量。
+- [ ] 注入层分开记录：sensor input、perception output、planning output、control command/actuator。
+- [ ] 第一批覆盖 camera corruption/drop、detection dropout/latency、stale/unsafe plan、brake delay/saturation。
+- [ ] oracle 来自注入 manifest；事故/碰撞只是后果，不等于根因标签。
+- [ ] 增加 counterfactual effect：关闭故障后违规是否消失、首次分歧时刻、下游传播延迟。
+
+### D. 分阶段规模
+
+- [ ] Smoke：3 个真实 profile 对应父场景 × healthy/perception/planning/control 共 12 条真实闭环。
+- [ ] Benchmark：至少 15 个父场景，按父场景隔离 split；每类故障有多强度、无事故故障和边界正常样本。
+- [ ] 极端天气改为真实 RGB detector 输出，不再使用 annotation-derived detection 声称视觉退化。
+- [ ] 每类保存至少 1 条 H.264 RGB/BEV/时间线 demo 和完整 failure package。
+
+验收标准：
+
+- [ ] 诊断器读取的是 SUT 已记录输出，不调用更强模型替代 SUT 重算 perception/planning/control。
+- [ ] healthy/faulty pair 除注入变量外配置哈希一致。
+- [ ] 能报告 Root Top-1、故障时间误差、传播顺序和 counterfactual effect，不要求每个故障都撞车。
+- [ ] 真实数据只用于场景分布校准，报告明确 real-to-sim gap。
+
+## 16.3 P6.3：Agent 必要性与自由度实验
+
+目标：区分“诊断逻辑有效”与“Agent 架构有效”，避免拿弱 Rule-only baseline 证明 Agent 必要。
+
+- [ ] 实现 `monolithic_causal_pipeline`：与 Multi-Agent 共享完全相同的 tools、阈值、候选打分和时序因果逻辑。
+- [ ] 保留 `rule_only` 作为简单规则下限，但不再作为 Agent 架构的唯一对照。
+- [ ] 增加消融：无模块隔离、无 availability gating、无 temporal dependency、无 abstention、无 reference discrepancy。
+- [ ] 在 single fault、compound fault、missing-module、domain-shift 四个子集分别比较。
+- [ ] 除 Accuracy/F1 外比较：evidence correctness、错误传播率、`uncertain` 校准、延迟、失败节点可定位率。
+- [ ] 受约束 router 只能依据 schema coverage、evidence conflict、confidence 和预注册规则选择工具。
+- [ ] Visual Review/VLM 只在 `uncertain` 或证据冲突时调用，并记录触发原因、输入哈希、成本和结果是否改变结论。
+- [ ] 增加相同输入重复运行测试；LLM 关闭时必须逐字节可复现核心 diagnosis JSON。
+
+判定规则：
+
+- [ ] 若 Multi-Agent 与逻辑等价 monolith 指标相同，Agent 的贡献写成工程架构、模块复用和审计 trace。
+- [ ] 只有在新增模块、字段缺失或冲突证据下显著降低错误传播，才声称 Agent 协作带来诊断收益。
+- [ ] 不把 LangGraph、Agent 数量或更长 trace 当作性能提升证据。
+
+## 16.4 P6.4：公共数据重新分工
+
+- [ ] nuScenes healthy/reference split：评估 perception SUT 的距离/遮挡退化，以及正常数据每分钟误报率，不评价原车根因。
+- [ ] nuPlan：实际运行一个 offline planner/closed-loop planner 产生 SUT trajectory，再诊断 planner；expert future 只作参考。
+- [ ] DoTA/DADA：评价 anomaly start time、事故对象和事件类型，不评价 perception/planning/control root module。
+- [ ] DeepAccident/RiskBench：评价风险识别与事故后果，只有额外注入 manifest 时才进入模块根因评估。
+- [ ] 公开事故视频与 CARLA profile 只做统计/模板映射，不宣称像素级或轨迹级真实事故复现。
 
 ## 17. 暂缓事项
 
