@@ -8,6 +8,10 @@
 
 因此下一阶段的目标不是“再加 Agent 或做漂亮界面”，而是把现有的架构合理性变成可被反驳、可比较、可测量的方法证据。
 
+## 当前实施状态
+
+已实现第一轮 P0 改造：`counterfactually_supported_injected_fault_location` 取代强根因表述；原生 `modelV2` 与 `zgAux.*` 辅助证据分离；四类竞争假设、可解释 `diagnostic_priority_score`、evidence-triggered 路由与 targeted/sham/alternative replay 已进入 workflow。还新增了 4-case 的 adaptive-vs-fixed synthetic smoke evaluator；它只验证小范围工具成本与 artifact 完整性，不构成方法有效性的充分实验。详见[最小评估协议](evaluation_protocol.md)。
+
 ## 目前成立的部分
 
 1. **真实性边界正确。** 真实 rlog/qlog 只给出 `suspected_link`、`insufficient_evidence` 或 `cannot_determine_root_cause`；oracle 与 observed data 隔离。

@@ -1,177 +1,120 @@
 # Agent 逻辑架构
 
-本文说明智驾卫士当前的多 Agent 逻辑。系统的核心不是让多个模型自由讨论“谁是根因”，而是让每个 Agent 在受限工具面内完成不同的诊断决策；所有事实必须来自确定性工具，所有结论必须经过 evidence 审计。
+本文描述当前可执行的工作流，而不是把每一个 Python 节点都称为 Agent。系统目标是对 openpilot-like 消息链路做**受证据约束的离线调查**：工具计算事实，调查 Agent 选择必要检查、维护竞争假设并决定何时停止。
 
-## 1. 设计原则
+## 1. 设计硬约束
 
-系统遵循四条硬约束：
+1. **工具计算事实。** 频率、gap、时间戳、CAN 地址、控制一致性与 safety event 只能由确定性工具生成。
+2. **oracle 不可见。** `DiagnosticCase.observed_copy()` 在进入 workflow 前移除 oracle；synthetic 注入标签只供 evaluator 使用。
+3. **主路线与辅助证据分离。** 原生依赖图只容纳 `modelV2`、`longitudinalPlan`、`carControl`、`sendcan`、`carState` 等主路线 topic。`zgAux.perceptionEvidence`、nuScenes、nuPlan 进入 `AuxiliaryEvidenceBundle`，固定不是同一路线。
+4. **结论按可观测性分级。** 真实日志最多得到 `suspected_link`、`insufficient_evidence` 或 `cannot_determine_root_cause`。synthetic 对照成功时只输出 `counterfactually_supported_injected_fault_location`，不输出真实世界根因。
+5. **不以角色数量证明 Agentic。** 只有存在局部目标、受限工具、条件分支和停止条件的调查角色才是 Agent；执行、审计和渲染是受调用的基础设施。
 
-1. **工具计算事实，Agent 管理诊断过程。** 消息频率、gap、CAN 地址、控制响应和 safety event 由 Python 工具计算，不由 Agent 凭文本推测。
-2. **Agent 只能读取 observed view。** `DiagnosticCase.observed_copy()` 删除 `oracle` 后才进入 workflow；注入故障标签只供 synthetic 评估使用。
-3. **跨数据源不伪造同一路线。** openpilot-like/commaCarSegments 是主诊断输入；nuScenes 与 nuPlan 仅以 `AuxiliaryEvidenceBundle` 形式提供辅助感知/规划证据，且固定 `same_route_as_primary=false`。
-4. **验证结论分级。** 真实日志最多得到 `suspected_link`；`validated_root_cause` 只允许用于 synthetic ADSLogRecord 的受控 repair/replay 验证。
-
-## 2. 总体工作流
-
-```text
-                  ┌─────────────────────────────┐
-                  │ DiagnosticCase（oracle 隐藏） │
-                  └──────────────┬──────────────┘
-                                 ▼
-                         Case Manager
-                                 │ topic / 数据类型 / 路由
-           ┌─────────────────────┼──────────────────────┐
-           ▼                     ▼                      ▼
-   Message Flow Agent      CAN Agent          Control / Safety Agent
-           └─────────────────────┬──────────────────────┘
-                                 ▼
-                         Hypothesis Agent
-                     ┌───────────┴───────────┐
-                     │ 假设图 + 决策面板      │
-                     │ 信息增益 / 成本排序    │
-                     └───────────┬───────────┘
-                                 ▼
-                    Counterfactual Agent
-                        │ synthetic 时可执行
-                                 ▼
-                       Validation Agent
-                        │ 比较预测和结果
-                                 ▼
-                       Evidence Auditor
-                                 ▼
-                         Report Agent
-```
-
-默认上限为 `max_agent_rounds=3`、`max_tool_calls=30`。即使达到上限，Evidence Auditor 与 Report Agent 仍会运行，保证输出有明确停止原因和审计结果。
-
-## 3. 共享状态与私有状态
-
-### 3.1 `DiagnosticWorkflowState`
-
-工作流共享状态包含：
-
-| 字段 | 用途 |
-| --- | --- |
-| `case` | 已去除 oracle 的 `DiagnosticCase` |
-| `available_topics` | Case Manager 发现的 topic |
-| `requested_agents` / `completed_agents` | 调度计划与实际执行记录 |
-| `tool_results` / `evidence` | 所有工具输出与稳定 evidence ID |
-| `hypotheses` | 当前可证伪的机制假设 |
-| `action_candidates` / `decision_board` | 候选动作、信息增益/成本及被选动作 |
-| `interventions` / `validations` | synthetic repair/replay 与验证结果 |
-| `audit_result` / `findings` | 审计后的结论 |
-| `trace` / `stop_reason` | 可复现调用轨迹和终止原因 |
-
-### 3.2 Agent 私有状态
-
-每个 Agent 都有局部 `private_state`，不直接作为事实写入报告：
-
-- Case Manager 保存发现的 topic 与候选专业 Agent。
-- Hypothesis Agent 保存 hypothesis、action candidates 和选定动作。
-- 其他专业 Agent 仅保留本次工具执行的局部上下文。
-
-对外可审计内容始终通过 `ToolResult`、`Evidence`、`Hypothesis`、`Intervention`、`ValidationResult` 与 `AgentTraceEntry` 写入共享状态。
-
-## 4. Agent 角色
-
-### 4.1 Case Manager Agent
-
-**目标：** 识别可观测数据并决定哪些专业检查有意义。
-
-**工具：** `list_available_topics()`、`build_message_dependency_graph()`。
-
-**路由规则：**
+## 2. 执行图
 
 ```text
-任何 topic                    → Message Flow Agent
-can 或 sendcan                → CAN Agent
-carControl/sendcan/carState   → Control Link Agent
-pandaStates/onroadEvents      → Safety Agent
+DiagnosticCase（oracle 已移除）
+          │
+          ▼
+   Case Manager Agent
+          │  初始只派发 Message Flow
+          ▼
+Message Flow Investigator ── message-gap evidence ──┐
+          │                                         │
+          │  按证据触发，而非固定 fan-out             │
+          ├──── CAN Investigator（can/sendcan gap）  │
+          ├──── Control Investigator（plan/control/sendcan gap）
+          └──── Safety Investigator（sendcan gap）   │
+                                                    ▼
+                                  Hypothesis Investigation Agent
+                                     │ 竞争假设 + priority score
+                                     ▼
+                           Counterfactual Executor（synthetic only）
+                           targeted / sham / alternative replay
+                                     ▼
+                               Validation Tool（比较预注册预测）
+                                     ▼
+                         Evidence Auditor → Report Renderer
 ```
 
-Case Manager 可以由可选 LLM 进行一次受限的 `select_specialists` 工具调用，但 LLM 只看到 topic 名称和允许的 Agent 名称。缺少 API key 或调用失败时，自动使用确定性路由。
+默认上限为 `max_agent_rounds=3`、`max_tool_calls=30`。达到预算后也会运行 Auditor 与 Renderer，输出明确的停止原因。
 
-### 4.2 Message Flow Agent
+## 3. 调查 Agent
 
-**目标：** 检查发布链路是否存在频率异常、消息 gap、时间倒退或陈旧消息。
+| Agent | 诊断目标 | 可调用工具 / 局部决策 | 停止条件 |
+| --- | --- | --- | --- |
+| Case Manager | 清点可观测 topic，控制预算 | `list_available_topics`、`build_message_dependency_graph`；只把候选 specialist 交给后续 evidence 路由 | 初始消息流检查已安排 |
+| Message Flow Investigator | 找到频率、gap、时间倒退、stale 事实 | 对实际存在的 `modelV2`、`longitudinalPlan`、`carControl`、`sendcan` 选择消息工具 | 已检查可观测主 topic |
+| CAN Investigator | 检查 CAN 通信健康 | 地址覆盖、频率、gap；只在 `can/sendcan` gap 可区分假设时调用 | 无 CAN topic 或检查完成 |
+| Control Investigator | 定位控制传递首次分歧 | command-response、`carControl/sendcan`、`sendcan/carState` 一致性 | 缺关键 topic 或检查完成 |
+| Safety Investigator | 检查安全层/车端接口阻断 | `pandaStates`、`onroadEvents` 提取；只在下游发送 gap 有意义时调用 | 无 safety topic 或检查完成 |
+| Hypothesis Investigation Agent | 生成竞争解释、选择下一动作 | `formulate_hypotheses`、`rank_action_candidates`、`choose_highest_priority` | 没有可证伪假设、没有可行动作或预算耗尽 |
 
-**工具：** `calculate_topic_frequency()`、`detect_message_gaps()`、`detect_timestamp_discontinuity()`、`detect_stale_messages()`。
+可选 DeepSeek/OpenAI 路由只看到 topic 名和候选 specialist 名称；它不读取 payload、oracle 或 finding，失败时退化为相同的离线规则。
 
-当前主动诊断重点检查：`perceptionEvidence`、`longitudinalPlan`、`carControl`、`sendcan`。这些 topic 分别覆盖感知证据、规划输出、控制命令和底层发送链路。
+## 4. 竞争假设而非固定故障表
 
-### 4.3 CAN Diagnostic Agent
+对每个主路线直接 gap，系统生成一个 `propagation` 假设，例如：
 
-**目标：** 检查 `can` / `sendcan` 的帧覆盖、地址分布、地址频率和长时间 gap。
+```text
+modelV2 gap          → modelV2 -> longitudinalPlan
+longitudinalPlan gap → longitudinalPlan -> carControl
+sendcan gap          → carControl -> sendcan
+```
 
-**工具：** `extract_can_frames()`、`summarize_can_addresses()`、`calculate_can_address_frequency()`、`detect_can_gaps()`。
+当同一窗口出现两个及以上直接 gap 时，额外生成：
 
-该 Agent 报告通用帧级事实，不假设某一车型 DBC 语义。
+```text
+independent_fault: 两个 gap 是独立故障
+common_cause:       一个未观测共同原因影响两个 topic
+```
 
-### 4.4 Control Link Agent
+每个假设都记录 supporting evidence、预测、下一动作、失败条件与理由。没有足够日志能区分竞争解释时，动作是请求额外可观测性，而不是猜测上游根因。
 
-**目标：** 检查规划/控制/车辆状态之间的消息传递，而不是直接判断车辆动力学根因。
+## 5. 可解释动作选择
 
-**工具：** `check_control_command_response()`、`check_carcontrol_sendcan_consistency()`、`check_sendcan_vehicle_state_consistency()`、`find_first_divergence()`。
+当前没有使用未经校准的“expected information gain”。每个 `ActionCandidate` 输出：
 
-缺少任一关键 topic 时，工具返回 `insufficient_observability`，而不是补造控制效果。
+```text
+diagnostic_priority_score =
+  evidence_strength
+  × downstream_explanatory_coverage
+  × discriminability
+  × feasibility
+  / execution_cost
+```
 
-### 4.5 Safety / Vehicle Interface Agent
+- `evidence_strength`：从 `gap_s / median_s` 归一化得到；
+- `downstream_explanatory_coverage`：依赖图中的可达下游节点比例；
+- `discriminability`：该 repair 能区分的竞争解释数量；
+- `feasibility`：是否为 synthetic、是否有注册 repair；
+- `execution_cost`：当前 replay/工具成本。
 
-**目标：** 检查安全层或车辆接口是否可能阻断下游链路。
+分数及各组成项都写入 `decision_board.json`。未来只有在 synthetic fault matrix 提供了经过校准的 `P(outcome | hypothesis, action)` 后，才会切换到条件熵信息增益。
 
-**工具：** `extract_panda_safety_events()`、`extract_onroad_events()`。
+## 6. 对照验证与结论边界
 
-重点字段包括 `controlsAllowed`、`safetyTxBlocked`、`faults`、`busOff`、`canError`、`commIssue`、`controlsMismatch` 与 `processNotRunning`。若日志中没有这些 topic，结论只能是不可观测。
+`CounterfactualExecutor` 不是可自由推理的 Agent。它仅在 synthetic case 且存在 clean reference 时按 Investigation Agent 的选择执行三种回放：
 
-### 4.6 Hypothesis Agent
+1. `targeted_repair`：恢复假设指向的 topic；
+2. `sham_repair`：恢复不应影响目标 gap 的对照 topic；
+3. `alternative_repair`：恢复竞争链路的相邻 topic。
 
-**目标：** 将主路线的直接 evidence 转换为可被反驳的机制假设，而不是生成自由文本根因。
+`ValidationTool` 要求三个预注册检查同时成立：
 
-当前内置假设映射：
+```text
+targeted_direct_gap_removed       = true
+sham_preserved_target_gap         = true
+alternative_preserved_target_gap  = true
+```
 
-| 直接证据 | 假设链路 | 预测 |
-| --- | --- | --- |
-| `perceptionEvidence` gap | `perceptionEvidence -> longitudinalPlan` | 恢复感知证据发布后，该 gap 消失 |
-| `longitudinalPlan` gap | `longitudinalPlan -> carControl` | 恢复规划输出发布后，该 gap 消失 |
-| `sendcan` gap | `carControl -> sendcan` | 恢复发送消息后，该 gap 与首次分歧消失 |
+成功后只能得到 `counterfactually_supported_injected_fault_location`。如果要声称“传播机制获得支持”，还必须有独立、预注册的下游异常恢复证据；当前 MVP 不做此强主张。
 
-每条 `Hypothesis` 都有 `evidence_ids`、置信度、预期观测、下一动作和理由。
+## 7. Evidence Auditor 与 Report Renderer
 
-### 4.7 Counterfactual Agent
+`EvidenceAuditor` 是基础设施而不是凑数量的 Agent。它验证每个 finding 的 evidence 引用、阻止真实 case 使用 synthetic-only 分类，并给跨数据源辅助证据附加非同一路线警告。
 
-**目标：** 选择并执行最有区分力的可行干预。
-
-它不会直接读取注入 oracle。对于 synthetic case，它只能调用注册的 `run_counterfactual_repair()`：从干净基线恢复对应 topic 的消息，生成一个新的 repair replay。对于真实 rlog/qlog，没有可控基线，因此返回 `not_feasible`，不会篡改原始记录。
-
-### 4.8 Validation Agent
-
-**目标：** 将干预前的预测与 repair replay 的观察结果进行比较。
-
-**工具：** `validate_counterfactual()`。
-
-验证结果可为：
-
-- `confirmed`：目标 gap 被修复，提升对应 hypothesis 的置信度；
-- `refuted`：修复后异常仍存在，降低该 hypothesis；
-- `insufficient_evidence`：没有可执行的回放或基线。
-
-### 4.9 Evidence Auditor Agent
-
-**目标：** 限制结论范围。
-
-Auditor 执行：
-
-1. 验证每个 finding 的 `evidence_id` 是否存在；
-2. 检查真实 case 是否错误使用 `validated_root_cause`；
-3. 对 nuScenes/nuPlan 辅助 evidence 写入“非同一路线”边界警告；
-4. 将未验证根因降级为 `suspected_link`、`insufficient_evidence` 或 `cannot_determine_root_cause`；
-5. 只允许 synthetic 且 validation 为 `confirmed` 的机制输出 `validated_root_cause`。
-
-### 4.10 Report Agent
-
-**目标：** 表达，不创造事实。
-
-它只读取已审计状态，生成：
+`ReportRenderer` 只能序列化已经审计的状态，生成：
 
 ```text
 diagnosis.json
@@ -184,56 +127,19 @@ report.md
 failure_sample_package/
 ```
 
-## 5. 信息增益决策
+它不会新增任何 finding 或自然语言事实。
 
-Hypothesis Agent 为每个假设构造 `ActionCandidate`：
+## 8. 如何证明不是固定 DAG
 
-```text
-action_id
-hypothesis_id
-action
-expected_information_gain
-estimated_cost
-feasible
-expected_discriminates
-rationale
-```
-
-当前确定性策略：在可行动作中选择最大的 `expected_information_gain / estimated_cost`。当 synthetic case 同时存在多个直接 gap 时，当前优先级为：
+`agent_trace.json` 必须随 case 改变。例如：
 
 ```text
-perceptionEvidence -> longitudinalPlan   0.90
-longitudinalPlan -> carControl           0.80
-carControl -> sendcan                    0.70
+modelV2 gap:
+Case Manager → Message Flow → Hypothesis Investigation → controls → audit → render
+
+sendcan gap:
+Case Manager → Message Flow → CAN / Control / Safety → Hypothesis Investigation
+→ controls → audit → render
 ```
 
-这不是“感知一定是根因”的规则；它只是面对同等成本的竞争直接异常时，优先验证更上游、能解释更多下游现象的动作。所有候选和选择都会写入 `decision_board.json`。
-
-## 6. 两种执行路径
-
-### 6.1 真实 openpilot-like 日志
-
-```text
-真实 rlog/qlog
-→ 观测工具
-→ suspected link / 证据不足
-→ 若缺少可控基线：记录下一步需要的日志
-→ Auditor
-```
-
-真实日志不会被 repair，也不会生成已验证根因。
-
-### 6.2 受控 synthetic ADSLogRecord
-
-```text
-clean case → 注入 perception / planning / sendcan fault
-→ 观测工具 → hypothesis board → 选择 repair
-→ counterfactual replay → validation
-→ synthetic-only validated_root_cause
-```
-
-当前测试覆盖 `perception_dropout`、`planner_gap`、`sendcan_gap` 与感知+sendcan 的歧义双故障场景。
-
-## 7. 与 CARLA 的关系
-
-`CarlaADSLogAdapter` 已定义统一的 ADSLogRecord 输入契约，但没有引入 CARLA runtime。后续 CARLA recorder 只需从闭环运行导出 `timestamp_s`、topic、payload summary 和 raw reference，即可复用同一套 Agent、hypothesis board、干预接口和 Auditor。只有 recorder 与真实闭环执行完成后，CARLA 才能成为“已验证 backend”。
+测试覆盖了这两条不同 trace。仍需在后续 fault matrix 中比较固定 pipeline、规则基线、去掉竞争假设和去掉 Auditor 的消融，才能主张动态调查路由带来方法收益。

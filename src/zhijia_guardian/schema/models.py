@@ -57,7 +57,7 @@ class ToolResult(BaseModel):
 
 class Finding(BaseModel):
   finding_id: str
-  classification: Literal["suspected_link", "validated_root_cause", "insufficient_evidence", "cannot_determine_root_cause"]
+  classification: Literal["suspected_link", "counterfactually_supported_injected_fault_location", "insufficient_evidence", "cannot_determine_root_cause"]
   suspected_link: str | None = None
   statement: str
   confidence: float = Field(ge=0, le=1)
@@ -67,6 +67,7 @@ class Finding(BaseModel):
 
 class Hypothesis(BaseModel):
   hypothesis_id: str
+  hypothesis_type: Literal["propagation", "independent_fault", "common_cause", "insufficient_observability"] = "propagation"
   target_link: str
   statement: str
   status: Literal["proposed", "supported", "refuted", "insufficient_evidence"] = "proposed"
@@ -84,6 +85,7 @@ class Intervention(BaseModel):
   target_link: str
   feasible: bool
   status: Literal["executed", "not_feasible", "error"]
+  role: Literal["targeted_repair", "sham_repair", "alternative_repair", "observation_request"] = "targeted_repair"
   rationale: str
   evidence_ids: list[str] = Field(default_factory=list)
 
@@ -96,16 +98,19 @@ class ValidationResult(BaseModel):
   observed_result: str
   confidence_delta: float = Field(ge=-1, le=1)
   evidence_ids: list[str] = Field(min_length=1)
+  check_outcomes: dict[str, bool] = Field(default_factory=dict)
+  limitations: list[str] = Field(default_factory=list)
 
 
 class ActionCandidate(BaseModel):
   action_id: str
   hypothesis_id: str
   action: str
-  expected_information_gain: float = Field(ge=0, le=1)
+  diagnostic_priority_score: float = Field(ge=0, le=1)
   estimated_cost: float = Field(gt=0)
   feasible: bool
   expected_discriminates: list[str] = Field(default_factory=list)
+  score_components: dict[str, float] = Field(default_factory=dict)
   rationale: str
 
 

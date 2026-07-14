@@ -39,15 +39,15 @@
 
 > 这一阶段优先验证“方法是否成立”，不以增加 Agent 数量或前端展示为目标。详见 [`docs/review_and_algorithm_plan.md`](../docs/review_and_algorithm_plan.md)。
 
-- [ ] 将 `validated_root_cause` 重命名并降级为 `counterfactually_supported_injected_fault_location`；只有多节点下游预测同时兑现时，才允许更强的机制性表述。
-- [ ] 把当前手工固定的 `expected_information_gain` 改为可追溯的 `diagnostic_priority_score`；完成竞争假设的条件概率建模后，再恢复严格的信息增益定义。
-- [ ] 拆分“原生 openpilot 依赖图”和 `AuxiliaryEvidenceBundle`；将 `perceptionEvidence` 明确为 `zgAux.*` 辅助 topic，避免混入原生消息链路。
-- [ ] 增加四类竞争假设：传播、独立双故障、共同原因、可观测性不足，并让每类假设给出可区分的预测。
-- [ ] 让 Case Manager 与专业 Agent 基于证据预算和不确定性动态选择/跳过工具；为不同案例记录不同 trace，并加回归测试防止退化成固定 DAG。
-- [ ] 将 Counterfactual Executor、Validation Tool、Evidence Auditor、Report Renderer 从“凑数量 Agent”降为受调用的基础设施；保留真正有分支与局部策略的调查 Agent。
-- [ ] 实现 paired/sham/alternative repair 对照，并以目标链路与下游恢复共同验证注入故障位置，避免循环证明。
+- [x] 将 `validated_root_cause` 重命名并降级为 `counterfactually_supported_injected_fault_location`；只有多节点下游预测同时兑现时，才允许更强的机制性表述。
+- [x] 把当前手工固定的 `expected_information_gain` 改为可追溯的 `diagnostic_priority_score`；完成竞争假设的条件概率建模后，再恢复严格的信息增益定义。
+- [x] 拆分“原生 openpilot 依赖图”和 `AuxiliaryEvidenceBundle`；将 `perceptionEvidence` 明确为 `zgAux.*` 辅助 topic，避免混入原生消息链路。
+- [x] 增加传播、独立双故障、共同原因、可观测性不足四类竞争假设，并让非可行动作明确请求可区分的新增日志。
+- [x] 让 Case Manager 与专业 Agent 基于消息流 evidence 动态选择/跳过 CAN、控制与 safety 检查；为不同案例记录不同 trace，并加入回归测试。
+- [x] 将 Counterfactual Executor、Validation Tool、Evidence Auditor、Report Renderer 在 trace/文档中降为受调用基础设施；保留有分支与局部策略的调查 Agent。
+- [x] 实现 targeted/sham/alternative repair 对照；当前只验证注入故障位置，需有独立下游预测才可验证传播机制。
 - [ ] 为 CAN 增加可选、车型绑定的 DBC profile；没有 profile 时固定输出为通信健康诊断，不声称车辆信号语义根因。
-- [ ] 建立可控故障矩阵、固定 pipeline/规则基线与消融实验，报告定位、拒答、校准、证据完整性、工具成本等指标。
+- [ ] 扩展可控故障矩阵、规则基线与消融实验，报告拒答、校准和多故障等指标（已实现 4-case adaptive vs fixed-pipeline 的 location/evidence/tool-cost smoke evaluator）。
 
 ## 展示层（算法验证后再做）
 

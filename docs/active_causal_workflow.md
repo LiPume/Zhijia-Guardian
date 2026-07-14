@@ -9,11 +9,11 @@
   → 比较预测与实际效果 → 更新 finding → 审计
 ```
 
-Counterfactual Agent 当前只能在可控的 synthetic ADSLogRecord 沙箱中执行；同一接口为后续 CARLA 后端预留。它只能调用注册的 repair 工具，不能读取注入故障 oracle。面对真实 rlog/qlog，动作会是 `not_feasible`，或根本不选择动作；系统会请求补充进程/安全日志，而不是修改真实记录。
+Counterfactual Executor 当前只能在可控的 synthetic ADSLogRecord 沙箱中执行；同一接口为后续 CARLA 后端预留。它只能调用注册的 targeted/sham/alternative repair 工具，不能读取注入故障 oracle。面对真实 rlog/qlog，动作会是 `not_feasible`，或根本不选择动作；系统会请求补充进程/安全日志，而不是修改真实记录。
 
-`validated_root_cause` 的含义被刻意限制为：受控回放中的注入机制按预测发生变化。真实 openpilot route 永远不能使用该分类。
+`counterfactually_supported_injected_fault_location` 的含义被刻意限制为：targeted repair 消除目标 gap，且 sham/alternative repair 保留该 gap。真实 openpilot route 永远不能使用该分类；这一结果也不自动证明真实根因或未观测传播机制。
 
-决策面板使多 Agent 的选择可审计。每个候选动作记录可行性、预期信息增益、成本和可区分的链路。当前确定性策略选择最大 `information_gain / cost`，当存在竞争的直接 gap 时，优先检查上游感知、其次规划、最后底层控制传输。这是后续学习式或 LLM 动作选择的可测试 baseline。
+决策面板使调查选择可审计。每个候选动作记录可行性、证据强度、下游覆盖、竞争假设区分度和成本。当前确定性策略选择最大的 `diagnostic_priority_score / cost`，不再使用无校准来源的“预期信息增益”常数；完成条件概率模型后才会改用严格的信息增益。
 
 ## CARLA 边界
 

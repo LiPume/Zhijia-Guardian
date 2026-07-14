@@ -17,7 +17,7 @@ conda run -n Zhijia python scripts/run_agentic_demo.py --config configs/demo.yam
 
 主诊断对象包括 rlog/qlog 或兼容输入中的 `can`、`sendcan`、`carState`、`carControl`、`controlsState`、`selfdriveState`、规划相关消息、`pandaStates`、`onroadEvents`，以及消息频率、缺失、延迟、依赖和控制指令传递关系。
 
-系统输出异常链路的 `suspected_link`；当缺少可观测证据时会输出 `insufficient_observability`、`insufficient_evidence` 或 `cannot_determine_root_cause`。只有在受控 synthetic ADSLogRecord 回放中，干预结果符合预测时，系统才允许输出 `validated_root_cause`；它只代表该**注入机制**在该合成样例中被验证，不代表真实车辆事故根因。
+系统输出异常链路的 `suspected_link`；当缺少可观测证据时会输出 `insufficient_observability`、`insufficient_evidence` 或 `cannot_determine_root_cause`。只有在受控 synthetic ADSLogRecord 的 targeted/sham/alternative 对照均符合预注册预测时，系统才允许输出 `counterfactually_supported_injected_fault_location`；它仅支持该**注入故障位置**，不代表真实车辆事故根因，也不自动证明未观测的传播机制。
 
 特别说明：**nuScenes、nuPlan、commaCarSegments 不能组成同一条真实端到端路线。**
 
@@ -148,8 +148,8 @@ clean openpilot-like ADSLogRecord
 → 注入 sendcan gap
 → 消息/CAN/控制/安全工具取证
 → hypothesis board
-→ 按信息增益/成本选择 repair
-→ counterfactual replay
+→ 按可解释 diagnostic-priority score 选择 repair
+→ targeted / sham / alternative counterfactual replays
 → validation
 → Evidence Auditor
 → 结构化报告
@@ -158,7 +158,7 @@ clean openpilot-like ADSLogRecord
 预期终端包含：
 
 ```text
-最终结论: validated_root_cause / carControl -> sendcan
+最终结论: counterfactually_supported_injected_fault_location / carControl -> sendcan
 ```
 
 输出目录：
@@ -175,7 +175,7 @@ $ZHIJIA_DATA_ROOT/outputs/synthetic-openpilot-perturbed/
 └── failure_sample_package/manifest.json
 ```
 
-其中 `validated_root_cause` 仅针对这个 synthetic 注入样例有效。
+其中 `counterfactually_supported_injected_fault_location` 仅针对这个 synthetic 注入样例有效；它不等同于真实系统根因。
 
 ## 6. 真实 openpilot qlog smoke：下载位置与步骤
 
@@ -238,7 +238,7 @@ conda run -n Zhijia python scripts/inspect_openpilot_log.py \
   --openpilot-root "$OPENPILOT_ROOT"
 ```
 
-目前 CLI 的真实日志入口用于解析和 topic 检查；完整主动故障注入/repair 验证只在可控 synthetic ADSLogRecord 中执行。真实日志缺少可控基线时，系统不会修改日志，也不会生成 `validated_root_cause`。
+目前 CLI 的真实日志入口用于解析和 topic 检查；完整主动故障注入/repair 对照验证只在可控 synthetic ADSLogRecord 中执行。真实日志缺少可控基线时，系统不会修改日志，也不会生成 `counterfactually_supported_injected_fault_location`。
 
 ## 7. commaCarSegments、nuScenes、nuPlan 与 CARLA 数据策略
 
@@ -256,7 +256,16 @@ cd /home/lzx/Zhijia-Guardian
 conda run -n Zhijia pytest -q
 ```
 
-当前测试覆盖 schema、证据审计、真实 qlog smoke（数据存在时）、辅助 evidence adapter、synthetic 主动验证、感知/规划/底层故障族、歧义场景的信息增益选择和 CARLA-compatible record adapter。
+当前测试覆盖 schema、证据审计、真实 qlog smoke（数据存在时）、辅助 evidence adapter、synthetic 对照验证、原生/辅助 topic 边界、感知/规划/底层故障族、歧义场景的 priority 选择、动态路由和 CARLA-compatible record adapter。
+
+还可以运行最小 synthetic routing 对照；它比较 adaptive 路由与同工具集的 fixed pipeline，并将结果写到外部数据根：
+
+```bash
+export ZHIJIA_DATA_ROOT=/data5/lzx_data/Zhijia-Guardian
+conda run -n Zhijia python scripts/evaluate_synthetic_matrix.py
+```
+
+该评估目前只有四个自有 synthetic case，用于检查 trace 分支和工具成本，不能用于宣称真实根因准确率。详见[最小评估协议](docs/evaluation_protocol.md)。
 
 在没有下载官方 qlog/参考实现的机器上，真实日志 smoke test 会以明确原因跳过；synthetic 核心测试不会跳过。
 
@@ -277,6 +286,7 @@ conda run -n Zhijia pytest -q
 - [设计说明](docs/design.md)
 - [主动因果工作流](docs/active_causal_workflow.md)
 - [审稿结论与算法改进计划](docs/review_and_algorithm_plan.md)
+- [最小评估协议](docs/evaluation_protocol.md)
 - [数据来源](docs/data_sources.md)
 - [限制](docs/limitations.md)
 - [旧版重校准说明](docs/legacy_recalibration.md)

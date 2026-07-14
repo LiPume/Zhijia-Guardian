@@ -19,7 +19,7 @@ def render_diagnosis_report(diagnosis: Diagnosis, evidence: list[Evidence], trac
     lines += ["", "## Decision board", ""]
     for item in diagnosis.decision_board.action_candidates:
       selected = " ← selected" if item.action_id == diagnosis.decision_board.chosen_action_id else ""
-      lines.append(f"- `{item.action_id}`: {item.action}; information gain/cost `{item.expected_information_gain:.2f}/{item.estimated_cost:.2f}`; feasible={item.feasible}{selected}")
+      lines.append(f"- `{item.action_id}`: {item.action}; diagnostic-priority/cost `{item.diagnostic_priority_score:.2f}/{item.estimated_cost:.2f}`; feasible={item.feasible}{selected}")
   lines += ["", "## Intervention and validation", ""]
   for item in diagnosis.interventions:
     lines.append(f"- `{item.intervention_id}`: {item.status}; {item.action}; {item.rationale}")
