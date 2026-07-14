@@ -25,3 +25,12 @@ Status date: 2026-07-14
 - [x] Extend audit/report artifacts with hypothesis graph, decision rationale, intervention results, and source-boundary checks.
 - [x] Add tests for successful synthetic validation, real-case non-intervention, and cross-dataset evidence isolation.
 - [x] Commit and push the active extension.
+
+## Decision-quality and CARLA-compatible extension
+
+- [x] Model competing hypotheses and action candidates explicitly, including expected information gain and cost.
+- [x] Replace first-match intervention selection with deterministic expected-information-gain selection.
+- [x] Add a CARLA-compatible normalized ADSLogRecord adapter without adding a CARLA runtime dependency.
+- [x] Add an ambiguity scenario to verify that one intervention can refute a competing hypothesis.
+- [x] Emit decision-board artifacts and document the next CARLA runtime integration boundary.
+- [ ] Run tests/demo, commit, and push.

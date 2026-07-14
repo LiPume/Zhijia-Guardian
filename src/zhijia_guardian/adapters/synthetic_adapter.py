@@ -65,6 +65,8 @@ def inject_perturbation(clean: DiagnosticCase, kind: str = "sendcan_gap", topic:
     case.messages = [m for m in case.messages if not (m.topic == "perceptionEvidence" and start_ns <= m.mono_time <= end_ns)]
   elif kind == "planner_gap":
     case.messages = [m for m in case.messages if not (m.topic == "longitudinalPlan" and start_ns <= m.mono_time <= end_ns)]
+  elif kind == "perception_and_sendcan_gap":
+    case.messages = [m for m in case.messages if not (m.topic in {"perceptionEvidence", "sendcan"} and start_ns <= m.mono_time <= end_ns)]
   else:
     raise ValueError(f"unsupported perturbation: {kind}")
   case.messages.sort(key=lambda m: m.mono_time)

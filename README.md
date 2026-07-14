@@ -77,6 +77,8 @@ $ZHIJIA_DATA_ROOT/outputs/synthetic-openpilot-perturbed/
 
 Expected result: the synthetic `sendcan` gap creates a testable `carControl -> sendcan` hypothesis; a repair replay removes the gap and produces `validated_root_cause` for that injected synthetic mechanism only. The output also includes `hypotheses.json` and `interventions.json`.
 
+`decision_board.json` records the competing hypotheses, feasible actions, expected information gain/cost, and the selected action.
+
 ## Real openpilot logs and data policy
 
 The upstream reference is external and never committed:

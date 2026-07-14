@@ -98,6 +98,24 @@ class ValidationResult(BaseModel):
   evidence_ids: list[str] = Field(min_length=1)
 
 
+class ActionCandidate(BaseModel):
+  action_id: str
+  hypothesis_id: str
+  action: str
+  expected_information_gain: float = Field(ge=0, le=1)
+  estimated_cost: float = Field(gt=0)
+  feasible: bool
+  expected_discriminates: list[str] = Field(default_factory=list)
+  rationale: str
+
+
+class DecisionBoard(BaseModel):
+  hypotheses: list[Hypothesis] = Field(default_factory=list)
+  action_candidates: list[ActionCandidate] = Field(default_factory=list)
+  chosen_action_id: str | None = None
+  selection_rationale: str = ""
+
+
 class AuxiliaryEvidenceBundle(BaseModel):
   bundle_id: str
   source_dataset: Literal["nuscenes", "nuplan"]
@@ -164,6 +182,7 @@ class Diagnosis(BaseModel):
   hypotheses: list[Hypothesis] = Field(default_factory=list)
   interventions: list[Intervention] = Field(default_factory=list)
   validations: list[ValidationResult] = Field(default_factory=list)
+  decision_board: DecisionBoard | None = None
   stop_reason: str
   agent_trace_path: str | None = None
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from zhijia_guardian.schema.models import AgentTraceEntry, AuditResult, DiagnosticCase, Hypothesis, Intervention, ToolResult, ValidationResult
+from zhijia_guardian.schema.models import ActionCandidate, AgentTraceEntry, AuditResult, DecisionBoard, DiagnosticCase, Hypothesis, Intervention, ToolResult, ValidationResult
 
 
 @dataclass
@@ -11,6 +11,8 @@ class DiagnosticWorkflowState:
   hypotheses: list[Hypothesis] = field(default_factory=list)
   interventions: list[Intervention] = field(default_factory=list)
   validations: list[ValidationResult] = field(default_factory=list)
+  action_candidates: list[ActionCandidate] = field(default_factory=list)
+  decision_board: DecisionBoard | None = None
   requested_agents: list[str] = field(default_factory=list)
   completed_agents: list[str] = field(default_factory=list)
   tool_results: list[ToolResult] = field(default_factory=list)

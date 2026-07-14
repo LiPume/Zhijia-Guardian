@@ -3,7 +3,7 @@ from __future__ import annotations
 from itertools import count
 from typing import Iterable
 
-from zhijia_guardian.schema.models import DiagnosticCase, Evidence, Finding, Hypothesis, TimeRange, ToolResult, ValidationResult
+from zhijia_guardian.schema.models import ActionCandidate, DiagnosticCase, Evidence, Finding, Hypothesis, TimeRange, ToolResult, ValidationResult
 
 _ids = count(1)
 
@@ -58,12 +58,32 @@ def formulate_hypotheses(case: DiagnosticCase) -> list[Hypothesis]:
       continue
     if evidence.topic in targets:
       target_link, statement = targets[evidence.topic]
-      hypotheses.append(Hypothesis(hypothesis_id="hyp-001", target_link=target_link, statement=statement, status="proposed", confidence=0.65,
+      hypothesis_id = f"hyp-{len(hypotheses) + 1:03d}"
+      hypotheses.append(Hypothesis(hypothesis_id=hypothesis_id, target_link=target_link, statement=statement, status="proposed", confidence=0.65,
         evidence_ids=[evidence.evidence_id], expected_observation=f"Restoring missing {evidence.topic} publications removes its direct message gap.",
         next_action=f"counterfactual_repair_{evidence.topic}" if case.source.is_synthetic else "obtain aligned process logs or a controlled replay",
         rationale=f"A direct {evidence.topic} gap is primary observed evidence; downstream effects remain a hypothesis until tested."))
-      break
   return hypotheses
+
+
+def rank_action_candidates(case: DiagnosticCase, hypotheses: list[Hypothesis]) -> list[ActionCandidate]:
+  """Rank actions by explicit information-gain/cost, never hidden oracle labels."""
+  upstream_priority = {"perceptionEvidence -> longitudinalPlan": 0.90, "longitudinalPlan -> carControl": 0.80, "carControl -> sendcan": 0.70}
+  candidates = []
+  for hypothesis in hypotheses:
+    feasible = case.source.is_synthetic
+    gain = upstream_priority.get(hypothesis.target_link, 0.50) if feasible else 0.25
+    candidates.append(ActionCandidate(action_id=f"act-{hypothesis.hypothesis_id}", hypothesis_id=hypothesis.hypothesis_id,
+      action=hypothesis.next_action if feasible else "request_additional_observability", expected_information_gain=gain, estimated_cost=1.0 if feasible else 2.0,
+      feasible=feasible, expected_discriminates=[hypothesis.target_link],
+      rationale=("Controlled repair/replay directly tests whether the observed gap is mechanism-defining." if feasible else "Real logs cannot be modified; request aligned process/safety evidence instead.")))
+  return candidates
+
+
+def choose_highest_information_gain(candidates: list[ActionCandidate]) -> ActionCandidate | None:
+  feasible = [candidate for candidate in candidates if candidate.feasible]
+  pool = feasible or candidates
+  return max(pool, key=lambda candidate: (candidate.expected_information_gain / candidate.estimated_cost, candidate.expected_information_gain), default=None)
 
 
 def apply_validation_to_findings(case: DiagnosticCase, hypotheses: list[Hypothesis], validations: list[ValidationResult]) -> list[Finding]:

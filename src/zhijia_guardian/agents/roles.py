@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from zhijia_guardian.schema.models import AuditResult, DiagnosticCase, Finding, Hypothesis, Intervention, ToolResult, ValidationResult
+from zhijia_guardian.schema.models import ActionCandidate, AuditResult, DiagnosticCase, Finding, Hypothesis, Intervention, ToolResult, ValidationResult
 from zhijia_guardian.tools import (build_message_dependency_graph, calculate_can_address_frequency, calculate_topic_frequency, check_carcontrol_sendcan_consistency,
   check_control_command_response, check_sendcan_vehicle_state_consistency, detect_can_gaps, detect_message_gaps, detect_stale_messages, detect_timestamp_discontinuity,
-  apply_validation_to_findings, extract_onroad_events, extract_panda_safety_events, formulate_hypotheses, list_available_topics, run_counterfactual_repair, summarize_can_addresses,
-  validate_counterfactual, validate_evidence_references)
+  apply_validation_to_findings, choose_highest_information_gain, extract_onroad_events, extract_panda_safety_events, formulate_hypotheses, list_available_topics, rank_action_candidates,
+  run_counterfactual_repair, summarize_can_addresses, validate_counterfactual, validate_evidence_references)
 
 
 @dataclass
@@ -20,6 +20,8 @@ class AgentRun:
   interventions: list[Intervention] = field(default_factory=list)
   validations: list[ValidationResult] = field(default_factory=list)
   counterfactual_case: DiagnosticCase | None = None
+  action_candidates: list[ActionCandidate] = field(default_factory=list)
+  selected_action: ActionCandidate | None = None
 
 
 @dataclass
@@ -82,22 +84,26 @@ class SafetyAgent(ToolUserAgent):
 
 
 class HypothesisAgent(ToolUserAgent):
-  def __init__(self): super().__init__("hypothesis_agent", "Convert primary evidence into competing, falsifiable fault-mechanism hypotheses.", {"formulate_hypotheses": formulate_hypotheses})
+  def __init__(self): super().__init__("hypothesis_agent", "Convert primary evidence into competing, falsifiable fault-mechanism hypotheses and rank next actions.", {"formulate_hypotheses": formulate_hypotheses, "rank_action_candidates": rank_action_candidates, "choose_highest_information_gain": choose_highest_information_gain})
   def invoke(self, case: DiagnosticCase) -> AgentRun:
     hypotheses = self.tools["formulate_hypotheses"](case)
     if not hypotheses:
       return AgentRun(hypothesis="No testable primary-evidence hypothesis is available.", summary="No intervention is selected without a supported primary mechanism.", stop_condition="insufficient evidence")
-    self.private_state["hypotheses"] = hypotheses
-    return AgentRun(hypothesis=hypotheses[0].statement, hypotheses=hypotheses, summary=f"Formulated {len(hypotheses)} falsifiable hypothesis(es).", stop_condition="highest-information action selected")
+    candidates = self.tools["rank_action_candidates"](case, hypotheses)
+    selected = self.tools["choose_highest_information_gain"](candidates)
+    self.private_state = {"hypotheses": hypotheses, "candidates": candidates, "selected": selected}
+    return AgentRun(hypothesis=selected.rationale if selected else hypotheses[0].statement, hypotheses=hypotheses, action_candidates=candidates, selected_action=selected,
+      summary=f"Formulated {len(hypotheses)} hypotheses; selected {selected.action_id if selected else 'no action'} by expected information gain/cost.", stop_condition="decision board ranked")
 
 
 class CounterfactualAgent(ToolUserAgent):
   def __init__(self): super().__init__("counterfactual_intervention_agent", "Choose and execute only feasible synthetic repair/replay interventions.", {"run_counterfactual_repair": run_counterfactual_repair})
-  def invoke(self, case: DiagnosticCase, hypotheses: list[Hypothesis], reference: DiagnosticCase | None = None) -> AgentRun:
-    if not hypotheses:
+  def invoke(self, case: DiagnosticCase, hypotheses: list[Hypothesis], selected_action: ActionCandidate | None, reference: DiagnosticCase | None = None) -> AgentRun:
+    if not hypotheses or selected_action is None:
       return AgentRun(summary="No hypothesis available for intervention.", stop_condition="no action")
-    intervention, tool_result, repaired = self.tools["run_counterfactual_repair"](case, reference, hypotheses[0])
-    return AgentRun([tool_result], hypothesis=hypotheses[0].statement, interventions=[intervention], counterfactual_case=repaired,
+    hypothesis = next(item for item in hypotheses if item.hypothesis_id == selected_action.hypothesis_id)
+    intervention, tool_result, repaired = self.tools["run_counterfactual_repair"](case, reference, hypothesis)
+    return AgentRun([tool_result], hypothesis=hypothesis.statement, interventions=[intervention], counterfactual_case=repaired,
       summary=f"{intervention.status}: {intervention.action}", stop_condition="counterfactual action completed or rejected")
 
 
@@ -106,8 +112,9 @@ class ValidationAgent(ToolUserAgent):
   def invoke(self, hypotheses: list[Hypothesis], intervention: Intervention | None, repaired: DiagnosticCase | None) -> AgentRun:
     if not hypotheses or intervention is None:
       return AgentRun(summary="No intervention result to validate.", stop_condition="no validation")
-    validation, tool_result = self.tools["validate_counterfactual"](hypotheses[0], repaired, intervention)
-    return AgentRun([tool_result], hypothesis=hypotheses[0].statement, validations=[validation], summary=f"Validation {validation.status}.", stop_condition="prediction compared with replay")
+    hypothesis = next(item for item in hypotheses if item.hypothesis_id == intervention.hypothesis_id)
+    validation, tool_result = self.tools["validate_counterfactual"](hypothesis, repaired, intervention)
+    return AgentRun([tool_result], hypothesis=hypothesis.statement, validations=[validation], summary=f"Validation {validation.status}.", stop_condition="prediction compared with replay")
 
 
 class EvidenceAuditorAgent(ToolUserAgent):

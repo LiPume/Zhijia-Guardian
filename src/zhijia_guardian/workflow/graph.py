@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from zhijia_guardian.agents import CANAgent, CaseManagerAgent, ControlLinkAgent, CounterfactualAgent, EvidenceAuditorAgent, HypothesisAgent, MessageFlowAgent, ReportAgent, SafetyAgent, ValidationAgent
-from zhijia_guardian.schema.models import AgentTraceEntry, AuxiliaryEvidenceBundle, Diagnosis, DiagnosticCase
+from zhijia_guardian.schema.models import AgentTraceEntry, AuxiliaryEvidenceBundle, DecisionBoard, Diagnosis, DiagnosticCase
 from .state import DiagnosticWorkflowState
 from .llm import resolve_llm_mode, select_specialists_with_llm
 
@@ -52,10 +52,14 @@ def run_diagnostic_workflow(case: DiagnosticCase, *, intervention_reference: Dia
     hypothesis_run = hypothesis_agent.invoke(state.case)
     _record(state, hypothesis_agent, hypothesis_run)
     state.hypotheses = hypothesis_run.hypotheses
+    state.action_candidates = hypothesis_run.action_candidates
+    state.decision_board = DecisionBoard(hypotheses=state.hypotheses, action_candidates=state.action_candidates,
+      chosen_action_id=hypothesis_run.selected_action.action_id if hypothesis_run.selected_action else None,
+      selection_rationale=hypothesis_run.summary)
     state.active_hypotheses = [item.statement for item in state.hypotheses]
     if state.hypotheses and state.tool_calls < max_tool_calls:
       intervention_agent = CounterfactualAgent()
-      intervention_run = intervention_agent.invoke(state.case, state.hypotheses, intervention_reference)
+      intervention_run = intervention_agent.invoke(state.case, state.hypotheses, hypothesis_run.selected_action, intervention_reference)
       _record(state, intervention_agent, intervention_run)
       state.interventions = intervention_run.interventions
       if state.interventions and state.tool_calls < max_tool_calls:
@@ -81,4 +85,4 @@ def run_diagnostic_workflow(case: DiagnosticCase, *, intervention_reference: Dia
   state.trace.append(AgentTraceEntry(step=len(state.trace) + 1, agent=reporter.name, objective=reporter.objective, tools_called=["render_diagnosis_report"], status="completed",
                                     output_summary="Structured audited state passed to artifact renderer; no upstream facts added.", evidence_ids=[e.evidence_id for e in state.case.evidence], stop_condition="artifact rendering delegated"))
   return Diagnosis(case_id=state.case.case_id, source=state.case.source, findings=state.findings, limitations=limitations, audit=audit,
-                   hypotheses=state.hypotheses, interventions=state.interventions, validations=state.validations, stop_reason=state.stop_reason), state
+                   hypotheses=state.hypotheses, interventions=state.interventions, validations=state.validations, decision_board=state.decision_board, stop_reason=state.stop_reason), state
