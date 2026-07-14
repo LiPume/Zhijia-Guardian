@@ -33,4 +33,4 @@ Status date: 2026-07-14
 - [x] Add a CARLA-compatible normalized ADSLogRecord adapter without adding a CARLA runtime dependency.
 - [x] Add an ambiguity scenario to verify that one intervention can refute a competing hypothesis.
 - [x] Emit decision-board artifacts and document the next CARLA runtime integration boundary.
-- [ ] Run tests/demo, commit, and push.
+- [x] Run tests/demo, commit, and push.
