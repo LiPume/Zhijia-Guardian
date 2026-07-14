@@ -103,4 +103,4 @@ conda run -n Zhijia python scripts/inspect_openpilot_log.py /path/to/one.rlog.zs
 - 已验证：官方单 qlog 可解析；由于 qlog 抽样与 topic 缺失，真实日志缺少控制/CAN 信号时会报告可观测性不足，而不会补造事实。
 - 未完成：CARLA runtime 与真实闭环 recorder；系统性 benchmark；真实自然事故根因验证。
 
-详见 [设计说明](docs/design.md)、[主动因果工作流](docs/active_causal_workflow.md)、[数据来源](docs/data_sources.md)、[限制](docs/limitations.md) 和 [旧版重校准说明](docs/legacy_recalibration.md)。
+详见 [Agent 逻辑架构](docs/agent_logic_architecture.md)、[设计说明](docs/design.md)、[主动因果工作流](docs/active_causal_workflow.md)、[数据来源](docs/data_sources.md)、[限制](docs/limitations.md) 和 [旧版重校准说明](docs/legacy_recalibration.md)。
