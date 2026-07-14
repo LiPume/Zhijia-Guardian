@@ -13,4 +13,4 @@ Status date: 2026-07-14
 - [x] Clone openpilot shallowly under the external data root and validate a real-log smoke path.
 - [x] Run the perturbed-case demo and test suite; record limitations honestly.
 - [x] Rewrite project documentation, including data boundaries and legacy recalibration rationale.
-- [ ] Commit checkpoints, inspect tracked files, and push `main` normally to GitHub.
+- [x] Commit checkpoints, inspect tracked files, and push `main` normally to GitHub.
