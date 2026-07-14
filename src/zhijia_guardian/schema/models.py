@@ -41,6 +41,8 @@ class Evidence(BaseModel):
   time_window: TimeRange | None = None
   metrics: dict[str, Any] = Field(default_factory=dict)
   source_tool: str
+  source_scope: Literal["primary", "auxiliary", "validation"] = "primary"
+  source_dataset: str | None = None
   limitations: list[str] = Field(default_factory=list)
 
 
@@ -55,11 +57,54 @@ class ToolResult(BaseModel):
 
 class Finding(BaseModel):
   finding_id: str
-  classification: Literal["suspected_link", "insufficient_evidence", "cannot_determine_root_cause"]
+  classification: Literal["suspected_link", "validated_root_cause", "insufficient_evidence", "cannot_determine_root_cause"]
   suspected_link: str | None = None
   statement: str
   confidence: float = Field(ge=0, le=1)
   evidence_ids: list[str] = Field(min_length=1)
+  limitations: list[str] = Field(default_factory=list)
+
+
+class Hypothesis(BaseModel):
+  hypothesis_id: str
+  target_link: str
+  statement: str
+  status: Literal["proposed", "supported", "refuted", "insufficient_evidence"] = "proposed"
+  confidence: float = Field(ge=0, le=1)
+  evidence_ids: list[str] = Field(min_length=1)
+  expected_observation: str
+  next_action: str
+  rationale: str
+
+
+class Intervention(BaseModel):
+  intervention_id: str
+  hypothesis_id: str
+  action: str
+  target_link: str
+  feasible: bool
+  status: Literal["executed", "not_feasible", "error"]
+  rationale: str
+  evidence_ids: list[str] = Field(default_factory=list)
+
+
+class ValidationResult(BaseModel):
+  validation_id: str
+  hypothesis_id: str
+  status: Literal["confirmed", "refuted", "insufficient_evidence"]
+  expected_observation: str
+  observed_result: str
+  confidence_delta: float = Field(ge=-1, le=1)
+  evidence_ids: list[str] = Field(min_length=1)
+
+
+class AuxiliaryEvidenceBundle(BaseModel):
+  bundle_id: str
+  source_dataset: Literal["nuscenes", "nuplan"]
+  role: Literal["perception_evidence_adapter", "planning_evidence_adapter"]
+  same_route_as_primary: bool = False
+  source_reference: str | None = None
+  evidence: list[Evidence] = Field(default_factory=list)
   limitations: list[str] = Field(default_factory=list)
 
 
@@ -72,6 +117,7 @@ class DiagnosticCase(BaseModel):
   messages: list[ADSMessage] = Field(default_factory=list)
   dependency_graph: dict[str, list[str]] = Field(default_factory=dict)
   observations: list[dict[str, Any]] = Field(default_factory=list)
+  auxiliary_evidence: list[AuxiliaryEvidenceBundle] = Field(default_factory=list)
   hypotheses: list[dict[str, Any]] = Field(default_factory=list)
   tool_results: list[ToolResult] = Field(default_factory=list)
   evidence: list[Evidence] = Field(default_factory=list)
@@ -115,6 +161,9 @@ class Diagnosis(BaseModel):
   findings: list[Finding]
   limitations: list[str]
   audit: AuditResult
+  hypotheses: list[Hypothesis] = Field(default_factory=list)
+  interventions: list[Intervention] = Field(default_factory=list)
+  validations: list[ValidationResult] = Field(default_factory=list)
   stop_reason: str
   agent_trace_path: str | None = None
 

@@ -2,7 +2,7 @@
 
 > **Zhijia-Guardian: a tool-augmented multi-agent diagnostic workflow for message flows and control chains in openpilot-like ADS.**
 
-智驾卫士不是“通用事故根因判定器”。它针对一条 openpilot-like 离线消息时间线，以确定性日志工具计算事实，由受限的工具使用型 Agent 选择检查路径，并由 Evidence Auditor 阻止无证据结论。
+智驾卫士不是“通用事故根因判定器”。它针对 openpilot-like 离线消息时间线，以确定性日志工具计算事实；Agent 会形成可证伪假设、选择下一项检查或 synthetic intervention、比较预测与结果，并由 Evidence Auditor 阻止无证据结论。
 
 ## 解决的问题与边界
 
@@ -14,18 +14,18 @@
 
 ## 为什么是 tool-use 多 Agent
 
-LLM（可选）不直接看日志猜根因：工具计算消息间隔、CAN 地址、控制链路一致性和安全事件；Agent 只管理假设、选择注册工具和停止条件；Auditor 审核 evidence ID 与可观测范围；Report Agent 只能渲染已有结构化状态。默认 `LLM_PROVIDER=none`，因此 CI 和 demo 不需要 API key。`LLM_PROVIDER=openai` 或 `LLM_PROVIDER=deepseek` 可使用一次 OpenAI-compatible 的结构化 `select_specialists` 工具调用，且缺 key、网络失败或非法工具结果都会自动降级为 offline 模式。
+LLM（可选）不直接看日志猜根因：工具计算消息间隔、CAN 地址、控制链路一致性和安全事件；Agent 维护 hypothesis board、选择注册工具和停止条件；Auditor 审核 evidence ID 与可观测范围；Report Agent 只能渲染已有结构化状态。默认 `LLM_PROVIDER=none`，因此 CI 和 demo 不需要 API key。`LLM_PROVIDER=openai` 或 `LLM_PROVIDER=deepseek` 可使用一次 OpenAI-compatible 的结构化 `select_specialists` 工具调用，且缺 key、网络失败或非法工具结果都会自动降级为 offline 模式。
 
 ```text
 rlog/qlog ── OpenpilotLogAdapter ── DiagnosticCase (oracle hidden)
                                       │
-START → Case Manager → conditional specialists → Manager review
+START → Case Manager → conditional specialists → Hypothesis Agent
                          ├ message flow tools
                          ├ CAN tools
                          ├ control-link tools
                          └ safety/interface tools
                                       │
-                              Evidence Auditor → Report Agent → artifacts
+               Counterfactual Agent → Validation Agent → Evidence Auditor → Report Agent
 ```
 
 ## Agents and tools
@@ -37,10 +37,22 @@ START → Case Manager → conditional specialists → Manager review
 | CAN Diagnostic | CAN/sendcan coverage | frame extraction, address summary/frequency, CAN gap |
 | Control Link | command propagation | control-response, carControl→sendcan, sendcan→carState, first divergence |
 | Safety / Vehicle Interface | safety blocks/events | panda state and onroad event extraction |
-| Evidence Auditor | evidence-bound claims | evidence-reference validation and suspected-link ranking |
+| Hypothesis / Counterfactual / Validation | active causal debugging | hypothesis formation, synthetic repair/replay, prediction validation |
+| Evidence Auditor | evidence-bound claims | evidence-reference validation, source-boundary and root-cause checks |
 | Report Agent | factual rendering only | diagnosis/report/package writer |
 
-The workflow has explicit state, conditional dispatch, agent-local state, structured output, trace records, and limits (`max_agent_rounds=3`, `max_tool_calls=20`).
+The workflow has explicit state, conditional dispatch, agent-local state, structured output, trace records, and limits (`max_agent_rounds=3`, `max_tool_calls=30`).
+
+## Cross-source evidence boundary
+
+| Role | Source | Permitted use |
+| --- | --- | --- |
+| Primary diagnosis | openpilot-like / commaCarSegments | message, CAN and control-chain evidence for an individual route/segment |
+| Auxiliary perception evidence | nuScenes | normalized perception-evidence adapter; never asserted as the same primary route |
+| Auxiliary planning evidence | nuPlan | normalized planning-evidence adapter; never asserted as the same primary route |
+| Causal validation | synthetic ADSLogRecord; CARLA next | controlled fault injection, repair/replay and oracle-only evaluation |
+
+Only the controlled validation layer may emit `validated_root_cause`, and it means a validated injected mechanism for that synthetic case—not a real vehicle incident cause. The current runnable sandbox is synthetic ADSLogRecord; CARLA is intentionally the next backend, not a completed claim.
 
 ## Quick start
 
@@ -63,7 +75,7 @@ $ZHIJIA_DATA_ROOT/outputs/synthetic-openpilot-perturbed/
 └── failure_sample_package/manifest.json
 ```
 
-Expected result: a `carControl -> sendcan` **suspected link** backed by a message-gap evidence record, never a claimed root cause.
+Expected result: the synthetic `sendcan` gap creates a testable `carControl -> sendcan` hypothesis; a repair replay removes the gap and produces `validated_root_cause` for that injected synthetic mechanism only. The output also includes `hypotheses.json` and `interventions.json`.
 
 ## Real openpilot logs and data policy
 
@@ -84,4 +96,4 @@ conda run -n Zhijia python scripts/inspect_openpilot_log.py /path/to/one.rlog.zs
 - In progress: current official single-qlog smoke download and parsing validation. Real qlog topic availability varies due to qlog decimation; missing control/CAN topics are reported rather than fabricated.
 - Not a benchmark or vehicle validation. Synthetic oracle is evaluator-only and does not establish real-world diagnostic accuracy.
 
-See [docs/design.md](docs/design.md), [docs/data_sources.md](docs/data_sources.md), [docs/agentic_workflow.md](docs/agentic_workflow.md), [docs/limitations.md](docs/limitations.md), and [docs/legacy_recalibration.md](docs/legacy_recalibration.md).
+See [docs/design.md](docs/design.md), [docs/active_causal_workflow.md](docs/active_causal_workflow.md), [docs/data_sources.md](docs/data_sources.md), [docs/limitations.md](docs/limitations.md), and [docs/legacy_recalibration.md](docs/legacy_recalibration.md).

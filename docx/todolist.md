@@ -1,4 +1,4 @@
-# Openpilot Message-Chain Recalibration TODO
+# Active Causal Diagnosis TODO
 
 Status date: 2026-07-14
 
@@ -14,3 +14,14 @@ Status date: 2026-07-14
 - [x] Run the perturbed-case demo and test suite; record limitations honestly.
 - [x] Rewrite project documentation, including data boundaries and legacy recalibration rationale.
 - [x] Commit checkpoints, inspect tracked files, and push `main` normally to GitHub.
+
+## Active multi-agent extension
+
+- [x] Define the primary/auxiliary/validation evidence boundary: openpilot-like logs are primary; nuScenes and nuPlan are adapters, never an asserted shared route.
+- [x] Add hypothesis-board, intervention, validation, and evidence-bundle Pydantic contracts.
+- [x] Add normalized nuScenes perception and nuPlan planning evidence adapters without downloading either dataset.
+- [x] Add a synthetic intervention sandbox with repair/replay and a counterfactual validation tool.
+- [x] Add active routing: formulate hypothesis → choose highest-value feasible check/intervention → observe result → update confidence/stop.
+- [x] Extend audit/report artifacts with hypothesis graph, decision rationale, intervention results, and source-boundary checks.
+- [x] Add tests for successful synthetic validation, real-case non-intervention, and cross-dataset evidence isolation.
+- [ ] Commit and push the active extension.

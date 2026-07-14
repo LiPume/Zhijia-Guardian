@@ -2,5 +2,5 @@ data_root: /data5/lzx_data/Zhijia-Guardian
 openpilot_root: null
 llm_provider: none
 max_agent_rounds: 3
-max_tool_calls: 20
+max_tool_calls: 30
 gap_multiplier: 3.0

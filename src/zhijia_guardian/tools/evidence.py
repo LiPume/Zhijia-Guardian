@@ -3,13 +3,15 @@ from __future__ import annotations
 from itertools import count
 from typing import Iterable
 
-from zhijia_guardian.schema.models import DiagnosticCase, Evidence, Finding, TimeRange, ToolResult
+from zhijia_guardian.schema.models import DiagnosticCase, Evidence, Finding, Hypothesis, TimeRange, ToolResult, ValidationResult
 
 _ids = count(1)
 
 
-def create_evidence(kind: str, summary: str, source_tool: str, *, topic: str | None = None, time_window: TimeRange | None = None, metrics: dict | None = None, limitations: list[str] | None = None) -> Evidence:
-  return Evidence(evidence_id=f"ev-{next(_ids):04d}", kind=kind, summary=summary, source_tool=source_tool, topic=topic, time_window=time_window, metrics=metrics or {}, limitations=limitations or [])
+def create_evidence(kind: str, summary: str, source_tool: str, *, topic: str | None = None, time_window: TimeRange | None = None, metrics: dict | None = None,
+                    limitations: list[str] | None = None, source_scope: str = "primary", source_dataset: str | None = None) -> Evidence:
+  return Evidence(evidence_id=f"ev-{next(_ids):04d}", kind=kind, summary=summary, source_tool=source_tool, topic=topic, time_window=time_window,
+                  metrics=metrics or {}, limitations=limitations or [], source_scope=source_scope, source_dataset=source_dataset)
 
 
 def result(tool_name: str, status: str, *, metrics: dict | None = None, evidence: list[Evidence] | None = None, limitations: list[str] | None = None, time_window: TimeRange | None = None) -> ToolResult:
@@ -29,7 +31,7 @@ def rank_suspected_links(case: DiagnosticCase) -> list[Finding]:
   selected = direct or gaps
   unique: dict[str, Evidence] = {}
   for evidence in selected:
-    link = "carControl -> sendcan" if evidence.topic == "sendcan" else f"producer -> {evidence.topic or 'unknown'}"
+    link = {"perceptionEvidence": "perceptionEvidence -> longitudinalPlan", "longitudinalPlan": "longitudinalPlan -> carControl", "sendcan": "carControl -> sendcan"}.get(evidence.topic, f"producer -> {evidence.topic or 'unknown'}")
     unique.setdefault(link, evidence)
   findings: list[Finding] = []
   for i, (link, evidence) in enumerate(unique.items(), 1):
@@ -40,4 +42,40 @@ def rank_suspected_links(case: DiagnosticCase) -> list[Finding]:
   if not findings and case.evidence:
     findings.append(Finding(finding_id="finding-001", classification="cannot_determine_root_cause", statement="No evidence supports a specific abnormal link in the observable topics.",
                             confidence=0.2, evidence_ids=[case.evidence[0].evidence_id], limitations=["absence of evidence is not evidence of absence"]))
+  return findings
+
+
+def formulate_hypotheses(case: DiagnosticCase) -> list[Hypothesis]:
+  """Create testable mechanisms only from primary observed evidence."""
+  hypotheses: list[Hypothesis] = []
+  targets = {
+    "perceptionEvidence": ("perceptionEvidence -> longitudinalPlan", "A perception-evidence publication interruption is the earliest observable fault mechanism in this case."),
+    "longitudinalPlan": ("longitudinalPlan -> carControl", "A planner-output publication interruption is the earliest observable fault mechanism in this case."),
+    "sendcan": ("carControl -> sendcan", "A sendcan transport/producer interruption is the earliest observable fault mechanism in this case."),
+  }
+  for evidence in case.evidence:
+    if evidence.source_scope != "primary" or evidence.kind != "message_gap":
+      continue
+    if evidence.topic in targets:
+      target_link, statement = targets[evidence.topic]
+      hypotheses.append(Hypothesis(hypothesis_id="hyp-001", target_link=target_link, statement=statement, status="proposed", confidence=0.65,
+        evidence_ids=[evidence.evidence_id], expected_observation=f"Restoring missing {evidence.topic} publications removes its direct message gap.",
+        next_action=f"counterfactual_repair_{evidence.topic}" if case.source.is_synthetic else "obtain aligned process logs or a controlled replay",
+        rationale=f"A direct {evidence.topic} gap is primary observed evidence; downstream effects remain a hypothesis until tested."))
+      break
+  return hypotheses
+
+
+def apply_validation_to_findings(case: DiagnosticCase, hypotheses: list[Hypothesis], validations: list[ValidationResult]) -> list[Finding]:
+  findings = rank_suspected_links(case)
+  confirmed = {item.hypothesis_id: item for item in validations if item.status == "confirmed"}
+  if not case.source.is_synthetic:
+    return findings
+  for hypothesis in hypotheses:
+    validation = confirmed.get(hypothesis.hypothesis_id)
+    if validation:
+      findings = [finding for finding in findings if finding.suspected_link != hypothesis.target_link]
+      findings.insert(0, Finding(finding_id="finding-validated-001", classification="validated_root_cause", suspected_link=hypothesis.target_link,
+        statement=f"Synthetic intervention validated the fault mechanism: {hypothesis.statement}", confidence=min(0.95, hypothesis.confidence + validation.confidence_delta),
+        evidence_ids=[*hypothesis.evidence_ids, *validation.evidence_ids], limitations=["Validation applies to this synthetic/injected ADSLogRecord only; it does not prove a real vehicle incident root cause."]))
   return findings

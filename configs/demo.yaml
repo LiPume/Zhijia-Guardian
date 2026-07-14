@@ -1,7 +1,7 @@
 data_root: /data5/lzx_data/Zhijia-Guardian
 llm_provider: none
 max_agent_rounds: 3
-max_tool_calls: 20
+max_tool_calls: 30
 injection:
   type: sendcan_gap
   topic: sendcan

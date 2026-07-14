@@ -8,6 +8,7 @@ from zhijia_guardian.schema.models import ADSMessage, DiagnosticCase, SourceInfo
 
 
 DEPENDENCIES = {
+  "perceptionEvidence": ["longitudinalPlan"],
   "longitudinalPlan": ["controlsState", "carControl"],
   "controlsState": ["carControl"],
   "carControl": ["sendcan"],
@@ -34,6 +35,8 @@ def generate_clean_case(case_id: str = "synthetic-openpilot-clean", duration_s: 
     add("controlsState", t, {"enabled": True, "state": "enabled"})
     add("carControl", t, {"actuators": {"accel": accel, "torque": round(0.1 * math.sin(t), 3)}})
     add("sendcan", t + 0.01, {"frames": [{"address": 0x2E4, "bus": 0, "dat": "0000000000000000"}, {"address": 0x194, "bus": 0, "dat": "0000000000000000"}]})
+    if i % 2 == 0:
+      add("perceptionEvidence", t, {"leadVisible": True, "objectCount": 3, "source": "synthetic"})
     if i % 5 == 0:
       add("longitudinalPlan", t, {"aTarget": accel, "vTarget": speed})
     if i % 5 == 0:
@@ -58,6 +61,10 @@ def inject_perturbation(clean: DiagnosticCase, kind: str = "sendcan_gap", topic:
       if msg.topic == topic and start_ns <= msg.mono_time <= end_ns:
         msg.mono_time += int(0.45 * 1e9)
         msg.quality_flags.append("synthetic_delay")
+  elif kind == "perception_dropout":
+    case.messages = [m for m in case.messages if not (m.topic == "perceptionEvidence" and start_ns <= m.mono_time <= end_ns)]
+  elif kind == "planner_gap":
+    case.messages = [m for m in case.messages if not (m.topic == "longitudinalPlan" and start_ns <= m.mono_time <= end_ns)]
   else:
     raise ValueError(f"unsupported perturbation: {kind}")
   case.messages.sort(key=lambda m: m.mono_time)

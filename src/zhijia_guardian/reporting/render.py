@@ -12,6 +12,14 @@ def render_diagnosis_report(diagnosis: Diagnosis, evidence: list[Evidence], trac
            "- This is an offline suspected-link analysis of observable openpilot-like messages; it does not determine a real-world root cause.", "", "## Audited findings", ""]
   for finding in diagnosis.findings:
     lines += [f"- **{finding.classification}** — {finding.statement}", f"  - Link: `{finding.suspected_link or 'not determined'}`; confidence: {finding.confidence:.2f}; evidence: {', '.join(finding.evidence_ids)}."]
+  lines += ["", "## Hypothesis board", ""]
+  for item in diagnosis.hypotheses:
+    lines.append(f"- `{item.hypothesis_id}` ({item.status}, {item.confidence:.2f}): {item.statement} Next action: `{item.next_action}`.")
+  lines += ["", "## Intervention and validation", ""]
+  for item in diagnosis.interventions:
+    lines.append(f"- `{item.intervention_id}`: {item.status}; {item.action}; {item.rationale}")
+  for item in diagnosis.validations:
+    lines.append(f"- `{item.validation_id}`: **{item.status}** — {item.observed_result}")
   lines += ["", "## Evidence", ""]
   for item in evidence:
     lines.append(f"- `{item.evidence_id}` ({item.source_tool}): {item.summary}")
@@ -30,10 +38,12 @@ def write_artifacts(output_root: str | Path, case: DiagnosticCase, diagnosis: Di
   write_json(diagnosis, diagnosis_path)
   evidence_path.write_text("".join(item.model_dump_json() + "\n" for item in case.evidence), encoding="utf-8")
   write_json({"case_id": case.case_id, "trace": [entry.model_dump() for entry in trace]}, trace_path)
+  write_json({"case_id": case.case_id, "hypotheses": [item.model_dump() for item in diagnosis.hypotheses]}, root / "hypotheses.json")
+  write_json({"case_id": case.case_id, "interventions": [item.model_dump() for item in diagnosis.interventions], "validations": [item.model_dump() for item in diagnosis.validations]}, root / "interventions.json")
   report_path = root / "report.md"
   report_path.write_text(render_diagnosis_report(diagnosis, case.evidence, trace), encoding="utf-8")
   package = root / "failure_sample_package"
   package.mkdir(exist_ok=True)
-  manifest = {"case_id": case.case_id, "source": case.source.model_dump(), "contains_raw_log": False, "files": ["diagnosis.json", "evidence.jsonl", "agent_trace.json", "report.md"], "limitations": diagnosis.limitations}
+  manifest = {"case_id": case.case_id, "source": case.source.model_dump(), "contains_raw_log": False, "files": ["diagnosis.json", "evidence.jsonl", "agent_trace.json", "hypotheses.json", "interventions.json", "report.md"], "limitations": diagnosis.limitations}
   (package / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-  return {"root": root, "diagnosis": diagnosis_path, "evidence": evidence_path, "trace": trace_path, "report": report_path, "package": package}
+  return {"root": root, "diagnosis": diagnosis_path, "evidence": evidence_path, "trace": trace_path, "hypotheses": root / "hypotheses.json", "interventions": root / "interventions.json", "report": report_path, "package": package}

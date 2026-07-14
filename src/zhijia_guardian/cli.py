@@ -22,14 +22,14 @@ def demo(config_path: str) -> int:
   save_case_json(clean, root / "synthetic" / "clean_case.json")
   save_case_json(perturbed, root / "perturbed" / "perturbed_case.json")
   (root / "perturbed" / "perturbation_manifest.yaml").write_text(yaml.safe_dump(manifest, sort_keys=False))
-  diagnosis, state = run_diagnostic_workflow(perturbed, max_agent_rounds=config.get("max_agent_rounds", 3), max_tool_calls=config.get("max_tool_calls", 20))
+  diagnosis, state = run_diagnostic_workflow(perturbed, intervention_reference=clean, max_agent_rounds=config.get("max_agent_rounds", 3), max_tool_calls=config.get("max_tool_calls", 30))
   artifacts = write_artifacts(root / "outputs", state.case, diagnosis, state.trace)
   print(f"输入日志: synthetic clean/perturbed openpilot-like timeline")
   print(f"可用 topic: {', '.join(state.available_topics)}")
   print("是否为真实数据: False; 是否进行了扰动: True")
   print(f"调用 Agent: {', '.join(entry.agent for entry in state.trace)}")
   print(f"调用 tools: {', '.join(sorted({result.tool_name for result in state.tool_results}))}")
-  print(f"最终 suspected link: {diagnosis.findings[0].suspected_link if diagnosis.findings else 'cannot_determine_root_cause'}")
+  print(f"最终结论: {diagnosis.findings[0].classification if diagnosis.findings else 'cannot_determine_root_cause'} / {diagnosis.findings[0].suspected_link if diagnosis.findings else 'not determined'}")
   print(f"报告路径: {artifacts['report']}")
   return 0
 
