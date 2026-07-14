@@ -1,656 +1,87 @@
-# 智驾卫士 Zhijia Guardian
+# Zhijia-Guardian（智驾卫士）
 
-面向自动驾驶异常日志的多 Agent 根因调查、反事实验证与优化原型。
+> **Zhijia-Guardian: a tool-augmented multi-agent diagnostic workflow for message flows and control chains in openpilot-like ADS.**
 
-本项目不是替代工程师做最终定责，而是把自动驾驶异常复盘中的日志对齐、指标计算、异常定位、证据整理和报告生成做成可复现流程。目标是在碰撞、急刹、偏航、轨迹异常、规则违反等安全违规场景中，自动输出候选根因 Top-K、证据链和工程师可读诊断报告，辅助研发人员缩短事故排查与算法调试时间。
+智驾卫士不是“通用事故根因判定器”。它针对一条 openpilot-like 离线消息时间线，以确定性日志工具计算事实，由受限的工具使用型 Agent 选择检查路径，并由 Evidence Auditor 阻止无证据结论。
 
-## 当前状态
+## 解决的问题与边界
 
-当前仓库已经完成第一版工程原型的底座：
+研究对象是 rlog/qlog 或兼容输入中的 `can` / `sendcan`、`carState`、`carControl`、`controlsState`、`selfdriveState`、planner-related messages、`pandaStates`、`onroadEvents` 和消息频率、缺失、延迟、依赖与控制传递关系。系统可定位**异常消息链路或控制链路的 suspected link**；没有可观测证据时会输出 `insufficient_observability`、`insufficient_evidence` 或 `cannot_determine_root_cause`。
 
-- Canonical `ScenarioRecord` schema，包含 `source/meta/frames/events_observed/oracle`。
-- `observed_view()` 与 `oracle` 隔离，诊断路径不能读取标签。
-- `ManualAdapter`、nuScenes metadata/真实六相机 YOLO adapter、nuPlan SQLite 5-scenario smoke adapter。
-- 6 个 canonical demo 场景生成脚本。
-- 真实数据兼容的 noisy manual 场景生成脚本。
-- TTC、碰撞、感知异常、规划风险、控制延迟等指标工具。
-- Rule-only baseline 和评估入口。
-- Single-LLM baseline，使用去标签化的场景/指标摘要、结构化输出和 evidence 引用校验；默认关闭 API 调用。
-- 显式 Pydantic `deterministic_workflow_v1`，包含模块 fan-out 和 root-cause fan-in；它是固定流程 baseline，不再作为最终 Agent 定义。
-- `run_id` 级实验输出目录，包含 `run_report.md`、`figures/`、`tables/`、`summary.json`、`eval.csv`、`confusion_matrix.json`、`run_meta.json`。
-- versioned `diagnosis_v1`、`diagnosis_report_v1` 和 `failure_sample_v1` 输出契约，支持导出 JSON Schema。
-- failure sample package，包含 `failure_samples.jsonl`、`tables/failure_samples.csv` 和 `failure_samples/{scenario_id}/failure_sample.json`。
-- Streamlit 只读工作台，直接读取输出包展示指标、错误样本、BEV、timeline、agent trace 和报告。
-- CARLA 0.9.15 离线故障注入、15 条 closed-loop benchmark 和 12 条极端天气 held-out benchmark，含 3D RGB 典型案例视频。
-- nuScenes mini 真实道路场景六相机 YOLOv8n 推理、公开标注投影关联、距离分桶指标和无 oracle 固定 workflow 诊断。
-- 可选 Qwen3.7-Plus Visual Review tool，支持纯原图 `direct_vlm` 与原图加去标签 evidence 的 `vlm_with_tools` 两条旁路实验。
-- pytest 覆盖 schema、真实 adapter、图状态、复合故障时序、demo eval、manual generator 和无标签泄漏。
+它不覆盖所有自动驾驶系统，不替代工程师，不从公开日志恢复真实事故根因，也不宣称多 Agent 一定优于线性 pipeline。
 
-暂未完成的部分：
+特别说明：**nuScenes、nuPlan、commaCarSegments 不能组成同一条真实端到端路线。**旧版相关模块已从主流程移除。
 
-- Agent v2 `InvestigationGraph`：hypothesis board、主动取证、Critic、反事实实验、Optimization 和 Validation 闭环。
-- SafeBench 官方 0.9.13 runtime 的真实 rollout；现有 0.9.15 在创建官方场景 actor 时会崩溃，主仓只保留安全 JSON adapter。
-- nuScenes LiDAR/相机融合 3D detector；当前已完成六相机独立 2D YOLOv8n，不声称已做传感器融合。
-- 多 seed、更多 CARLA 场景模板和自然事故外部验证。
-- 真实相机/点云 detector 的雨雾夜间退化评估；当前极端天气 benchmark 使用 annotation-derived detections。
+## 为什么是 tool-use 多 Agent
 
-## 项目边界
-
-本项目中的“多 Agent”指故障调查与优化 Agent，不指交通环境中的多车、多行人、多路侧设备交互智能体。
-Agent 必须具备目标、私有状态、可证伪假设、动作空间、工具权限和停止条件。Parser、Metric Calculator、
-模块 fixed scorer 和模板报告器属于工具或 workflow node，不再因拆成文件就称为 Agent。
-
-当前 Pydantic DAG 冻结为确定性 baseline。Agent v2 将使用独立 LangGraph `InvestigationGraph` 编排调查、
-证伪、反事实、优化和验证循环。完整定义见 [docs/agent_redefinition_v2.md](docs/agent_redefinition_v2.md)，
-编排决策见 [docs/orchestration_decision.md](docs/orchestration_decision.md)。
-
-本项目不做以下事情：
-
-- 不直接判断交通事故法律责任。
-- 不声称能从任意真实车端日志中自动恢复完整真值。
-- 不把 nuScenes / nuPlan 的场景标签当作故障根因标签。
-- 不把 LLM 当成直接猜答案的分类器。
-- 不复现 UniAD、VAD、SparseDrive、TransFuser 等完整自动驾驶模型。
-- 不在 MVP 阶段接 Autoware、车企 NOA 私有日志或通用隐层特征解释。
-
-更准确的定位是：
-
-> 面向自动驾驶异常日志的多 Agent 协同调查、反事实诊断与优化验证系统。
-
-## 为什么可行
-
-这个 idea 可行，但前提是范围要收敛清楚。
-
-可行的部分是：把自动驾驶复盘组织成统一 schema、确定性工具、假设调查 Agent、因果证伪、反事实重放、
-优化候选和回归验证。manual perturbation 和 CARLA 故障注入提供 fault oracle，可评价根因、证据、
-counterfactual 和 repair success；固定模块流程继续作为可复现 baseline。
-
-不适合直接承诺的部分是：仅靠 nuScenes 或 nuPlan 直接证明根因诊断效果。nuScenes 更适合验证感知相关 schema 和 annotation 映射；nuPlan 更适合验证规划场景骨架、地图、ego future 和 scenario tag 的读取。它们本身不是“带系统故障根因标签”的诊断数据集，所以第一版只能把它们作为真实数据接入 smoke test 和可视化/字段覆盖验证。
-
-最终产品的合理 MVP 是：
-
-1. 工程师选择异常场景与明确版本的 SUT 日志。
-2. Case Manager 建立多个可证伪 hypothesis，并按需委派 Domain Investigator 调用工具。
-3. Causal Reasoner 和 Critic 构建传播图、寻找反证与替代解释。
-4. Counterfactual Agent 请求 CARLA/nuPlan paired replay 验证候选根因。
-5. Optimization Agent 提出最小干预，Validation Agent 执行故障 A/B 与 healthy regression。
-6. Report Composer Service 输出已验证根因、未决项、优化候选和验证结果；Evaluator 才能读取 fault oracle。
-
-## 核心输入输出
-
-第一版系统输入不是原始车企全量日志，而是 adapter 转换后的统一结构化日志 `ScenarioRecord`。
-
-### 输入
-
-`ScenarioRecord` 的核心结构如下：
-
-```json
-{
-  "scenario_id": "manual_v0_1_000001",
-  "source": {
-    "dataset": "manual_json",
-    "version": "v0_1",
-    "raw_log_id": "full_stack_like_carla",
-    "raw_tokens": {},
-    "generation": {
-      "generation_seed": 42,
-      "noise_profile": "v0_1_moderate"
-    }
-  },
-  "meta": {
-    "coordinate_frame": "world",
-    "distance_unit": "meter",
-    "time_unit": "second",
-    "speed_unit": "m/s",
-    "angle_unit": "radian",
-    "frequency_hz": 2.0,
-    "duration": 5.0
-  },
-  "frames": [],
-  "events_observed": [],
-  "oracle": {
-    "visible_to_diagnosis": false,
-    "fault_type": "control_delay",
-    "root_module": "control",
-    "fault_start_time": 2.54
-  }
-}
-```
-
-诊断系统只能读取 `observed_view()`，其中不包含 `oracle`。`oracle` 只能由 `experiments/run_eval.py` 在评估时读取。
-
-### 输出
-
-每次实验输出到：
+LLM（可选）不直接看日志猜根因：工具计算消息间隔、CAN 地址、控制链路一致性和安全事件；Agent 只管理假设、选择注册工具和停止条件；Auditor 审核 evidence ID 与可观测范围；Report Agent 只能渲染已有结构化状态。默认 `LLM_PROVIDER=none`，因此 CI 和 demo 不需要 API key。`LLM_PROVIDER=openai` 或 `LLM_PROVIDER=deepseek` 可使用一次 OpenAI-compatible 的结构化 `select_specialists` 工具调用，且缺 key、网络失败或非法工具结果都会自动降级为 offline 模式。
 
 ```text
-/data5/lzx_data/Zhijia-Guardian/outputs/runs/{run_id}/
+rlog/qlog ── OpenpilotLogAdapter ── DiagnosticCase (oracle hidden)
+                                      │
+START → Case Manager → conditional specialists → Manager review
+                         ├ message flow tools
+                         ├ CAN tools
+                         ├ control-link tools
+                         └ safety/interface tools
+                                      │
+                              Evidence Auditor → Report Agent → artifacts
 ```
 
-目录结构：
+## Agents and tools
 
-```text
-metrics/              # 每个场景的指标 evidence
-diagnoses/            # 每个场景的结构化诊断结果
-reports/              # 每个场景的 Markdown 报告，内嵌图链接
-figures/              # BEV、timeline、confusion matrix SVG
-tables/               # errors.csv、leaderboard.csv
-failure_samples/      # 每个故障/错误场景的 failure_sample.json
-run_report.md         # 一次实验的总览报告
-artifacts_manifest.json
-eval.csv              # 场景级评估结果
-failure_samples.jsonl # 可回流的失败样本总表
-summary.json          # 汇总指标
-confusion_matrix.json # 混淆矩阵
-run_meta.json         # run_id、method、dataset、seed、git_commit 等复现信息
-```
-
-## 真实数据兼容策略
-
-手工样本不是另起一套玩具格式，而是 canonical schema 的轻量模拟器。后续真实数据只通过 adapter 进入同一个 `ScenarioRecord`。
-
-```text
-nuScenes / nuPlan / CARLA / SafeBench / manual_json
-        |
-        v
-adapter
-        |
-        v
-Canonical ScenarioRecord
-        |
-        v
-metrics + agents
-        |
-        v
-diagnosis.json / report.md
-        |
-        v
-evaluator reads oracle only
-```
-
-当前三类 manual subset：
-
-- `perception_like_nuscenes`：有 ego、actors_gt、perception detections，planning/control 可缺失。
-- `planning_like_nuplan`：有 ego、actors_gt、map、planning trajectory，perception/control 可缺失。
-- `full_stack_like_carla`：有 ego、actors_gt、perception、planning、control、events_observed。
-
-真实数据边界：
-
-- `actors_gt_source` 必须标注来源，可选 `simulation`、`dataset_annotation`、`offline_reconstruction`、`unavailable`。
-- `planning.trajectory_source` 必须标注来源，可选 `expert_future`、`offline_planner`、`perturbed_planner`、`model_prediction`、`unavailable`。
-- nuScenes metadata-only 阶段不声称完成图像/点云 detector 评估。
-- nuPlan 的 `scenario_tag` 只能作为上下文或抽样条件，不能作为 `fault_type` 或 `root_module`。
-
-## 架构
-
-```text
-数据适配层
-  -> 统一日志 Schema 层
-  -> 指标工具层
-  -> Agent v2 调查与反事实层
-  -> 优化、验证与报告层
-```
-
-Agent v2 使用动态调查图：
-
-```text
-Case Manager -> selected Domain Investigators
-             -> Causal Reasoner -> Critic
-                    ^              |
-                    + investigation/counterfactual loop
-             -> Optimization -> Validation -> Report
-```
-
-现有固定 fan-out/fan-in 图保留为 `deterministic_workflow_v1`。Agent v2 定义见
-[docs/agent_redefinition_v2.md](docs/agent_redefinition_v2.md)。
-
-### 数据适配层
-
-负责把不同来源的数据统一转换为 `ScenarioRecord`。当前已有：
-
-- `ManualAdapter`
-- `NuScenesAdapter`，metadata 5-sample smoke 版本
-- `NuPlanAdapter`，SQLite 5-scenario smoke 版本
-- nuPlan planning perturbation benchmark，基于真实 scene 生成 5 对 opaque benign/collision 轨迹样本
-
-### 指标工具层
-
-第一版诊断判断主要来自确定性工具，不依赖 LLM。
-
-已实现工具：
-
-- TTC 曲线、min TTC、TTC violation。
-- ego 与关键目标最小距离。
-- 规划轨迹与障碍物 bbox 碰撞检测。
-- 感知漏检、误检、类别混淆、置信度突降。
-- 控制延迟检测。
-- comfort 指标：acceleration、jerk、yaw rate。
-- evidence coverage / correctness / hallucination rate 计算。
-
-待补充工具：
-
-- route progress、lane deviation、规则违反的更完整实现。
-
-### 多 Agent 诊断层
-
-Agent 不是模块 checker，也不是多个大模型自由聊天。每个 Agent 都有 hypothesis、动作、工具权限、预算和
-停止条件：
-
-| Agent | 目标 | 主要输出 |
+| Agent | Diagnostic target | Registered deterministic tools |
 | --- | --- | --- |
-| Case Manager | 管理调查目标、hypothesis board 和预算 | 调查计划、委派、停止原因 |
-| Domain Investigator | 主动选择感知/规划/控制等工具取证和找反证 | hypotheses、evidence、falsifiers |
-| Causal Reasoner | 构建带时间和证据的传播图 | causal graph |
-| Critic | 攻击 Top-1 和替代解释 | supported/weakened/falsified |
-| Counterfactual Agent | 请求 CARLA/nuPlan 最小干预重放 | paired experiment result |
-| Optimization Agent | 提出最小可回滚修复 | optimization candidates |
-| Validation Agent | 运行故障 A/B 与 healthy regression | accepted/rejected/inconclusive |
-| Report Composer Service | 序列化已验证结果，不计入 Agent | 根因、未决项、优化与验证报告 |
+| Case Manager | inventory and routing | topic catalog, dependency graph |
+| Message Flow | frequency/gap/stale/order | topic frequency, gaps, timestamp discontinuity, stale check |
+| CAN Diagnostic | CAN/sendcan coverage | frame extraction, address summary/frequency, CAN gap |
+| Control Link | command propagation | control-response, carControl→sendcan, sendcan→carState, first divergence |
+| Safety / Vehicle Interface | safety blocks/events | panda state and onroad event extraction |
+| Evidence Auditor | evidence-bound claims | evidence-reference validation and suspected-link ranking |
+| Report Agent | factual rendering only | diagnosis/report/package writer |
 
-DeepSeek 可作为 Agent policy，数值计算和仿真评估仍由 Python 工具完成。旧固定流程在 LLM 不可用时提供
-deterministic fallback。
+The workflow has explicit state, conditional dispatch, agent-local state, structured output, trace records, and limits (`max_agent_rounds=3`, `max_tool_calls=20`).
 
-## 快速开始
-
-当前建议直接使用已有 `yolo` 环境。
+## Quick start
 
 ```bash
 cd /home/lzx/Zhijia-Guardian
-conda activate yolo
-pip install -e ".[dev]"
+conda env create -f environment.yml  # or reuse the existing Zhijia environment
+conda run -n Zhijia pip install -e '.[dev,openpilot]'
+export ZHIJIA_DATA_ROOT=/data5/lzx_data/Zhijia-Guardian
+conda run -n Zhijia python scripts/run_agentic_demo.py --config configs/demo.yaml
 ```
 
-需要运行 Single-LLM 时再安装小型可选依赖，不会重复安装 PyTorch：
-
-```bash
-pip install -e ".[dev,llm]"
-```
-
-最短启动方式：
-
-```bash
-./backend.sh
-./frontend.sh
-```
-
-其中 `backend.sh` 默认生成/刷新手工样本并跑 rule-only、deterministic workflow v1 两组输出；CLI 为兼容
-历史结果仍使用 `multi_agent_tools` 方法名。`frontend.sh` 会启动只读 Streamlit 工作台。Single-LLM
-默认不运行，避免意外产生 API 费用。
-
-CARLA 0.9.15 已接入独立离线链路。运行时和数据都放在 `/data5`，不会进入 Git：
-
-```bash
-./scripts/setup_carla_runtime.sh
-./carla.sh
-```
-
-另开终端记录真实仿真基础日志并生成 30 条故障集：
-
-```bash
-conda run -n yolo python scripts/record_carla_base_scenarios.py \
-  --count 5 --frames 80 --town Town10HD_Opt --seed 42 --no-rendering \
-  --output-dir /data5/lzx_data/Zhijia-Guardian/datasets/carla/base_v0_1
-
-conda run -n yolo python scripts/generate_carla_fault_benchmark.py \
-  --base-log-dir /data5/lzx_data/Zhijia-Guardian/datasets/carla/base_v0_1 \
-  --output-root /data5/lzx_data/Zhijia-Guardian/datasets/carla/fault_benchmark_v0_1 \
-  --clean
-```
-
-完整安装、兼容补丁、运行限制和复现命令见 [docs/carla_runtime.md](docs/carla_runtime.md)。
-
-生成两条 CARLA 典型案例视频：
-
-```bash
-conda run -n yolo python scripts/render_carla_case_videos.py
-```
-
-输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/case_videos/carla_v0_1/`，包括感知漏检和
-规划碰撞风险两组成对回放。仓库内可直接查看的副本位于 [`demo/`](demo/)。
-
-录制真正的 CARLA 3D RGB 闭环案例：
-
-```bash
-CARLA_RENDER_MODE=xvfb ./carla.sh
-conda run -n yolo python scripts/capture_carla_3d_case_videos.py
-```
-
-输出为 `demo/03_carla_3d_normal_stop.mp4` 和 `demo/04_carla_3d_control_delay.mp4`。
-
-生成 6 个 canonical demo：
-
-```bash
-python scripts/generate_canonical_demo.py
-```
-
-生成真实数据 smoke test：
-
-```bash
-python scripts/run_real_smoke_test.py
-```
-
-生成 nuPlan 真实场景轨迹扰动集：
-
-```bash
-python scripts/generate_nuplan_perturbation.py --pairs 5 --seed 42 --clean
-```
-
-运行 nuScenes 真实前视图 detector 和无标签诊断：
-
-```bash
-conda run -n yolo python scripts/run_nuscenes_yolo_benchmark.py --clean
-
-conda run -n yolo python experiments/run_diagnosis.py \
-  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/nuscenes_mini/yolo_v0_1/canonical/scenarios.jsonl \
-  --run-id nuscenes_real_yolo_v0_1_multi_agent \
-  --method multi_agent_tools
-```
-
-该入口不会读取或伪造 oracle，因此只输出诊断假设，不生成 Accuracy/F1。详细结果、投影关联方式和
-限制见 [docs/nuscenes_real_yolo_v0_1.md](docs/nuscenes_real_yolo_v0_1.md)，H.264 视频位于
-[`demo/real_nuscenes/`](demo/real_nuscenes/)。
-
-运行 nuScenes 六相机真实场景 detector、距离分桶评估和同步视频：
-
-```bash
-conda run -n yolo python scripts/run_nuscenes_multicamera_benchmark.py --clean
-
-conda run -n yolo python experiments/run_diagnosis.py \
-  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/nuscenes_mini/yolo_multicam_v0_2/canonical/scenarios.jsonl \
-  --run-id nuscenes_real_multicam_v0_2_multi_agent \
-  --method multi_agent_tools
-```
-
-默认抽取两个真实 scene 的六路相机，共 12 个 canonical 片段。结果说明见
-[docs/nuscenes_real_multicam_v0_2.md](docs/nuscenes_real_multicam_v0_2.md)，H.264 六视角视频位于
-[`demo/real_nuscenes_multicam/`](demo/real_nuscenes_multicam/)。
-
-让 Qwen3.7-Plus 直接复核真实原始帧：
-
-```bash
-# 不调用 API，只检查每个场景选中的 8 张原图和哈希
-conda run -n yolo python experiments/run_visual_review.py \
-  --prepare-only --mode direct_vlm \
-  --run-id nuscenes_real_qwen37_direct_v0_1_prepare
-
-# 配置 DASHSCOPE_API_KEY 后，先只调用 1 个场景
-conda run -n yolo python experiments/run_visual_review.py \
-  --enable-vlm --limit 1 --mode direct_vlm \
-  --run-id nuscenes_real_qwen37_direct_v0_1
-```
-
-该结果按 `visual_review_v1` 保存为旁路输出，默认不参与确定性 Root Cause 排序。两种实验模式和
-能力边界见 [docs/qwen_visual_review.md](docs/qwen_visual_review.md)。
-
-生成当前 noisy manual benchmark：
-
-```bash
-python scripts/generate_manual_scenarios.py \
-  --version v0_3 \
-  --output /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
-  --count 72 \
-  --seed 42 \
-  --clean
-```
-
-运行 Rule-only baseline：
-
-```bash
-python experiments/run_eval.py \
-  --method rule_only \
-  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
-  --run-id manual_v0_3_rule_seed42 \
-  --seed 42
-```
-
-运行 deterministic workflow v1（历史 CLI 名 `multi_agent_tools`）：
-
-```bash
-python experiments/run_eval.py \
-  --method multi_agent_tools \
-  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
-  --run-id manual_v0_3_multi_agent_seed42 \
-  --seed 42
-```
-
-检查单个场景的固定图拓扑和 workflow node 执行轨迹：
-
-```bash
-python scripts/inspect_diagnosis_graph.py \
-  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
-  --scenario-id manual_v0_3_000001
-```
-
-运行 Single-LLM 前，在本机 shell 配置密钥。不要把密钥写入 YAML 或提交到 Git：
-
-```bash
-export OPENAI_API_KEY='your-api-key'
-# 使用兼容服务时可选：export OPENAI_BASE_URL='https://example.com/v1'
-
-python experiments/run_eval.py \
-  --method single_llm \
-  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
-  --run-id manual_v0_3_single_llm_smoke5_seed42 \
-  --seed 42 \
-  --enable-llm \
-  --limit 5
-```
-
-也可以通过启动脚本做 5 样本连通性验证：
-
-```bash
-RUN_SINGLE_LLM=1 SINGLE_LLM_LIMIT=5 ./backend.sh
-```
-
-当前仓库也提供 DeepSeek 官方 OpenAI-compatible 接口配置。项目根目录 `.env` 已被 Git 忽略：
-
-```dotenv
-DEEPSEEK_API_KEY='your-api-key'
-DEEPSEEK_BASE_URL='https://api.deepseek.com'
-DEEPSEEK_MODEL=deepseek-v4-pro
-```
-
-```bash
-python experiments/run_eval.py \
-  --method single_llm \
-  --dataset /data5/lzx_data/Zhijia-Guardian/datasets/manual_json/v0_3 \
-  --run-id manual_v0_3_single_llm_deepseek_v4_pro_seed42 \
-  --llm-config configs/llm_deepseek.yaml \
-  --enable-llm \
-  --resume
-```
-
-DeepSeek 使用 Chat Completions `json_object`，返回值再由本地 Pydantic 严格校验。`--resume` 会复用 run 目录中已经完成的逐场景 metrics/diagnosis，避免 API 中断后重复调用和计费。通过启动脚本运行时设置 `LLM_CONFIG=configs/llm_deepseek.yaml`。
-
-Single-LLM 只接收 `observed_view()` 派生的聚合摘要，以及去掉 `supports`、`contradicts` 和自由文本描述后的 metrics。模型输出中的每条 claim 必须引用 `evidence_id`；不存在或不支持结论的引用会计入 hallucination rate。完整设计见 [docs/single_llm_baseline.md](docs/single_llm_baseline.md)。
-
-运行测试：
-
-```bash
-python -m pytest
-```
-
-启动只读工作台：
-
-```bash
-streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501
-```
-
-## 当前实验结果
-
-完整实验流程、五 seed 稳定性、时序因果消融、CARLA/nuPlan/nuScenes 分层结果、延迟和有效性威胁见
-[docs/完整实验分析报告.md](docs/完整实验分析报告.md)。机器可读表格位于
-[`docs/tables/`](docs/tables/)。
-
-三种方法已在完全相同的 72 个 manual v0.3 场景、seed 42 和 commit `0c7e220` 上完成统一评估：
-
-| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct | Evidence Correctness | Hallucination Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Deterministic workflow v1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 1.0000 | 0.0000 |
-| Single-LLM / DeepSeek V4 Pro | 0.9861 | 0.9861 | 0.9861 | 0.8167 | 0.3333 | 0.6250 | 0.1271 |
-| Rule-only | 0.9028 | 0.9066 | 0.9028 | 1.0000 | 0.0000 | 1.0000 | 0.0000 |
-
-正式比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_3_seed42/`，包含 `comparison.csv`、`comparison.json` 和 `comparison.md`。生成命令：
-
-```bash
-python experiments/compare_runs.py \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_3_rule_seed42 \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_3_single_llm_deepseek_v4_pro_seed42 \
-  /data5/lzx_data/Zhijia-Guardian/outputs/runs/manual_v0_3_multi_agent_seed42 \
-  --output-dir /data5/lzx_data/Zhijia-Guardian/outputs/comparisons/manual_v0_3_seed42
-```
-
-v0.3 先生成物理时序，再按 TTC 首次跌破阈值确定风险时刻；上游感知/规划故障必须早于下游控制异常。Rule-only 的 7 条错误全部是把复合故障的下游 `control_delay` 当成根因，deterministic workflow v1 用模块分诊和时序因果排序恢复了上游根因。Single-LLM 分类接近满分，但 Evidence Correctness 仅 0.6250、Hallucination Rate 为 0.1271，因此不能只用分类准确率声称报告可信。完整定义见 [docs/manual_benchmark_v0_3.md](docs/manual_benchmark_v0_3.md)。
-
-CARLA v0.1 已在 5 条真实仿真基础日志上派生 30 条离线信号级故障样本：
-
-| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Deterministic workflow v1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
-| Rule-only | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
-
-比较输出位于 `/data5/lzx_data/Zhijia-Guardian/outputs/comparisons/carla_fault_v0_1_seed42/`。
-两种方法都满分说明 v0.1 注入与规则仍一一对应；它是 CARLA 数据链路集成测试，不是多智能体
-优越性证据。
-
-CARLA v0.2-riskfix 已加入随机强度、边界正常样本、时序复合故障和 parent-group 隔离 split，并
-修正历史版本将最低 TTC 时刻误作控制延迟起点的问题。正式 commit `e6fe4b8` 的结果为：
-
-| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Deterministic workflow v1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
-| Deterministic workflow w/o temporal | 0.8000 | 0.8056 | 0.8000 | 1.0000 | 0.0000 |
-| Rule-only | 0.8000 | 0.8056 | 0.8000 | 1.0000 | 0.0000 |
-
-完全隔离的 10 条 test parent 得到相同结果。Rule-only 和无时序消融的错误全部来自将上游感知故障误判为
-下游 control delay；deterministic workflow 的时序根因排序正确恢复了上游根因。该结果证明的是受控复合
-故障上的协作机制价值，不代表自然事故上的普遍提升。完整定义见
-[docs/carla_benchmark_v0_2.md](docs/carla_benchmark_v0_2.md)。
-
-CARLA closed-loop v0.1 进一步实际重跑了 5 个父场景的 normal、control-delay 和
-planning-fault，共 15 条真实动力学日志。正式 commit `80bacf9`：
-
-| 方法 | Fault Accuracy | Macro-F1 | Root Top-1 | Time Coverage | Time MAE@Correct |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Deterministic workflow v1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
-| Rule-only | 0.6667 | 0.5556 | 0.6667 | 1.0000 | 0.0000 |
-
-5 条 normal 均无碰撞，5 条控制延迟和 5 条危险规划均产生真实碰撞。Rule-only 将 planning
-fault 误判为 control delay；deterministic workflow 根据危险规划早于控制失效的时间关系恢复根因。完整
-定义见 [docs/carla_closed_loop_v0_1.md](docs/carla_closed_loop_v0_1.md)。
-
-CARLA extreme-weather v0.1 在重雨、浓雾和夜间风暴中各实跑 normal、感知置信度下降、危险规划和
-控制延迟，共 12 条轨迹；`night_storm` 作为完整 held-out test：
-
-| 方法 | Full Macro-F1 | Held-out Macro-F1 | Root Top-1 | Evidence Correctness | Hallucination Rate |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Deterministic workflow v1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 |
-| Rule-only | 0.3750 | 0.3750 | 0.5000 | 1.0000 | 0.0000 |
-
-规则方法把感知/规划上游故障误判为下游控制延迟；deterministic workflow 根据更早出现的模块证据恢复根因。
-当前检测结果来自仿真标注，只能证明诊断机制兼容这些天气上下文，不能声称真实视觉模型具备
-极端天气鲁棒性。数据生成命令和限制见
-[docs/carla_extreme_weather_v0_1.md](docs/carla_extreme_weather_v0_1.md)。
-
-nuScenes real CAM_FRONT + YOLO v0.1 在 5 个真实道路 scene 的 202 张关键帧上得到：annotation
-recall `0.4706`、50 米内较大关键目标 recall `0.5391`、detection precision `0.7248`、匹配目标
-类别准确率 `0.9290`。deterministic workflow 对 5 个片段都给出 `perception_miss` 主导的诊断假设，
-Planning/Control Node 因真实字段缺失而跳过。由于 nuScenes 没有系统故障根因 oracle，这组结果不计算
-Fault Macro-F1，也不声称“5/5 诊断正确”。完整说明见
-[docs/nuscenes_real_yolo_v0_1.md](docs/nuscenes_real_yolo_v0_1.md)。
-
-nuScenes six-camera YOLO v0.2 在 2 个真实道路 scene 的 486 张关键帧上进一步得到：annotation
-recall `0.4845`、关键目标 recall `0.5525`、detection precision `0.7174`、匹配类别准确率
-`0.9420`。距离分桶 recall 从 0-20m 的 `0.7261` 降至 40m+ 的 `0.2782`，说明诊断证据受真实
-感知距离退化显著影响。12 个“场景×相机”片段均进入同一 deterministic workflow；该结果仍无 fault oracle，
-不计算根因准确率。完整说明见
-[docs/nuscenes_real_multicam_v0_2.md](docs/nuscenes_real_multicam_v0_2.md)。
-
-注意：旧 manual v0.2 结果仍是 commit `48f0578` 的历史可复现结果。commit `0c7e220` 已完成
-manual v0.3 重建和三方法刷新；当前结果不再混用旧 oracle 与新的首次 TTC 风险时间定义。
-
-## 评估指标
-
-诊断准确性：
-
-- Fault Accuracy
-- Fault Macro-F1
-- Root Cause Top-1 Accuracy
-- Module-level Accuracy
-- Fault Start Time MAE
-- Fault Start Time Coverage
-- Fault Start Time MAE @ Correct Fault
-- Fault Start Time Coverage @ Correct Fault
-
-报告可信度：
-
-- Evidence Coverage = 有 evidence_id 支撑的 claim 数 / 总 claim 数
-- Hallucination Rate = 无 evidence_id 支撑或 evidence 不支持的 claim 数 / 总 claim 数
-- Evidence Correctness = 被引用 evidence 中与 claim 一致的比例
-
-效率指标：
-
-- 单场景指标计算耗时。
-- 报告生成耗时。
-- 工程师需要继续查看的日志字段数量。
-
-## 与已有工作的关系
-
-DVCA、ACAV 等工作更偏仿真内嵌因果分析，通常需要重新运行 ADS、替换组件或修改消息流。本项目不直接挑战这类方法的严格因果性，而是关注更工程化的问题：
-
-> 当异常日志已经存在时，如何在不重新运行完整仿真的情况下，快速生成候选根因、证据链和工程师可读报告？
-
-与 Apollo / Autoware 等 debug 工具相比，本项目不是只做日志回放，而是在统一日志 schema 之上增加自动化指标计算、模块异常检查、候选根因排序、证据链组织和失败样本沉淀。
-
-与直接使用 LLM 分析日志相比，本项目把确定性指标工具放在第一位。LLM 只能读取 evidence 和 observed summary，不能读取 oracle，也不能生成无证据 claim。
-
-## 路线图
-
-短期必须完成：
-
-- 补齐 lane deviation / route progress / 规则违反等指标。
-- 固化 deterministic workflow v1 的错误分析和阈值配置。
-- 完善 `diagnosis.json`、`report.md` 和 claim/evidence 反查。
-- 做固定 seed 的 100+ noisy manual test split。
-- 打磨 Streamlit 工作台的筛选、错误样本复盘、failure sample 浏览和输出包浏览。
-
-中期增强：
-
-- Single-LLM baseline，用于对比 hallucination 和 evidence coverage。
-- nuScenes / nuPlan 从 1 个 smoke sample 扩到 5 个样本。
-- [已完成 v0.1] CARLA 离线日志生成、canonical adapter 与信号级故障注入。
-
-暂缓：
-
-- CARLA 实时闭环控制。
-- SafeBench 大规模接入。
-- DriveLM / DoTA / DADA / Bench2Drive 等扩展数据集。
-- RLHF、SFT 或通用隐层特征解释。
-
-## Git 规范
-
-从现在开始，每完成一个相对独立模块就提交一次 commit。推荐节奏：
-
-1. schema / adapter / dataset generator / metrics / baseline / agents / UI 分模块提交。
-2. 每次提交前至少运行相关测试。
-3. commit message 用动宾结构，例如 `Build rule-only diagnosis baseline`。
-4. 大数据、模型权重、实验输出不进 git，统一放 `/data5/lzx_data/Zhijia-Guardian`。
-
-## 目录结构
+The repeatable demo creates a clean openpilot-like timeline, deletes a bounded `sendcan` window, hides the perturbation oracle from all agents, and writes:
 
 ```text
-configs/                 # 阈值、路径、LLM 开关
-docs/                    # adapter contract 与真实数据字段映射
-docs/output_contract.md  # 实验输出规范
-docs/workbench.md        # Streamlit 工作台说明
-docx/                    # 计划书、设计文档、todo
-experiments/             # 实验 CLI 和 baseline 入口
-scripts/                 # 数据生成与 smoke test 脚本
-src/zhijia_guardian/     # 核心代码
-tests/                   # pytest 测试
-/data5/lzx_data/...      # 大数据和实验输出，不提交 git
+$ZHIJIA_DATA_ROOT/outputs/synthetic-openpilot-perturbed/
+├── diagnosis.json
+├── evidence.jsonl
+├── agent_trace.json
+├── report.md
+└── failure_sample_package/manifest.json
 ```
 
-## 复现实验备注
+Expected result: a `carControl -> sendcan` **suspected link** backed by a message-gap evidence record, never a claimed root cause.
 
-本仓库根目录的 `data/` 被 `.gitignore` 忽略，样例数据需要通过脚本重新生成。真实数据和实验输出默认放在 `/data5/lzx_data/Zhijia-Guardian`，不要提交到 git。
+## Real openpilot logs and data policy
+
+The upstream reference is external and never committed:
+
+```bash
+export ZHIJIA_DATA_ROOT=/data5/lzx_data/Zhijia-Guardian
+bash scripts/setup_openpilot_reference.sh
+export OPENPILOT_ROOT=$ZHIJIA_DATA_ROOT/reference/openpilot
+conda run -n Zhijia python scripts/inspect_openpilot_log.py /path/to/one.rlog.zst --openpilot-root "$OPENPILOT_ROOT"
+```
+
+`OpenpilotLogAdapter` uses upstream `openpilot.tools.lib.logreader.LogReader`; no openpilot source is copied or modified. Fetch only one explicit rlog/qlog segment (no camera video unless necessary), place it under `$ZHIJIA_DATA_ROOT/raw/openpilot/`, and keep it out of Git. `scripts/fetch_minimal_sample.py` documents the official small qlog smoke source.
+
+## Current status and limitations
+
+- Implemented: deterministic offline workflow, synthetic perturbation demo, Pydantic contracts, evidence audit, report/package artifacts, and independent real-log adapter.
+- In progress: current official single-qlog smoke download and parsing validation. Real qlog topic availability varies due to qlog decimation; missing control/CAN topics are reported rather than fabricated.
+- Not a benchmark or vehicle validation. Synthetic oracle is evaluator-only and does not establish real-world diagnostic accuracy.
+
+See [docs/design.md](docs/design.md), [docs/data_sources.md](docs/data_sources.md), [docs/agentic_workflow.md](docs/agentic_workflow.md), [docs/limitations.md](docs/limitations.md), and [docs/legacy_recalibration.md](docs/legacy_recalibration.md).

@@ -1,4 +1,0 @@
-pydantic>=2,<3
-PyYAML>=6
-pytest>=8
-streamlit>=1.36

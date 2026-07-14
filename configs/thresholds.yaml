@@ -1,8 +1,0 @@
-ttc_threshold: 1.5
-collision_margin: 0.0
-planning_collision_margin: 0.5
-perception_match_distance: 2.5
-perception_confidence_threshold: 0.35
-perception_confidence_drop: 0.35
-brake_threshold: 0.25
-max_brake_delay: 0.6
