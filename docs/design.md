@@ -1,7 +1,9 @@
-# Design
+# 设计说明
 
-`DiagnosticCase` replaces `ScenarioRecord`. It validates a single source, time range, service catalog, summaries of timestamped messages, dependency graph, observations, tool results, evidence, findings, limitations, and optional evaluator-only oracle. Message payloads are summaries plus raw references; raw rlog payloads are never duplicated into reports.
+`DiagnosticCase` 替代 `ScenarioRecord`。它校验单一来源、时间范围、service catalog、带时间戳的消息摘要、依赖图、观测、工具结果、evidence、finding、限制与可选的仅评估端 oracle。消息 payload 只保存摘要和 raw reference，不会把原始 rlog payload 复制到报告。
 
-Observed data and `oracle` are separated by `DiagnosticCase.observed_copy()`. The workflow constructs this oracle-free view before any agent is invoked. The oracle is only retained in clean/perturbed input files for evaluator inspection.
+observed data 与 `oracle` 通过 `DiagnosticCase.observed_copy()` 分离。任一 Agent 调用前，workflow 都构造不含 oracle 的视图；oracle 仅保留在 clean/perturbed 输入中，供评估端检查。
 
-Every tool returns `ToolResult(tool_name, status, time_window, metrics, evidence, limitations)`. Every evidence record gets a stable per-run ID; every finding has at least one evidence ID. A finding is a suspected link, not a root cause, unless the evidence auditor can justify the narrower conclusion—which this MVP deliberately does not claim.
+每个工具返回 `ToolResult(tool_name, status, time_window, metrics, evidence, limitations)`。每条 evidence 都有每次运行稳定的 ID；每个 finding 至少引用一个 evidence ID。没有受控验证时，finding 只能是 suspected link 或证据不足；只有 synthetic 回放的预测得到验证，Auditor 才允许 `validated_root_cause`。
+
+`AuxiliaryEvidenceBundle` 用于 nuScenes 感知证据和 nuPlan 规划证据。它固定带有 `same_route_as_primary=false`，因此不能成为真实主路线因果结论的替代证据。

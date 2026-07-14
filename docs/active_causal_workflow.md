@@ -1,22 +1,22 @@
-# Active causal workflow
+# 主动因果工作流
 
-The prior tool workflow is a necessary factual substrate, not the final contribution. This extension makes a bounded diagnostic decision loop:
+此前的工具工作流是必要的事实底座，但不是项目最终贡献。本扩展实现了受限的诊断决策闭环：
 
 ```text
-primary route observations → specialist evidence → hypothesis board
-  → select highest-value feasible action
-  → synthetic repair/replay or explicit observability gap
-  → compare predicted and observed effect → update finding → audit
+主路线观测 → 专业 Agent 证据 → hypothesis board
+  → 选择价值最高且可执行的动作
+  → synthetic repair/replay，或明确记录可观测性缺口
+  → 比较预测与实际效果 → 更新 finding → 审计
 ```
 
-The counterfactual agent currently acts in a controllable synthetic ADSLogRecord sandbox; the same interface is reserved for a future CARLA backend. It receives a registered repair tool and never reads the injected-fault oracle. In a real rlog/qlog case the action is `not_feasible` (or no action is selected), and the system asks for more process/safety logs instead of modifying the real record.
+Counterfactual Agent 当前只能在可控的 synthetic ADSLogRecord 沙箱中执行；同一接口为后续 CARLA 后端预留。它只能调用注册的 repair 工具，不能读取注入故障 oracle。面对真实 rlog/qlog，动作会是 `not_feasible`，或根本不选择动作；系统会请求补充进程/安全日志，而不是修改真实记录。
 
-`validated_root_cause` is deliberately narrow: the injected mechanism changed as predicted in that controlled replay. It is not permitted for a real openpilot route.
+`validated_root_cause` 的含义被刻意限制为：受控回放中的注入机制按预测发生变化。真实 openpilot route 永远不能使用该分类。
 
-The decision board makes the multi-agent choice inspectable. Every candidate action records feasibility, expected information gain, cost, and the links it discriminates. The current deterministic policy chooses maximum `information_gain / cost`, preferring upstream perception, then planning, then lower-level control transport when competing direct gaps exist. This is a testable baseline for future learned or LLM-based action selection.
+决策面板使多 Agent 的选择可审计。每个候选动作记录可行性、预期信息增益、成本和可区分的链路。当前确定性策略选择最大 `information_gain / cost`，当存在竞争的直接 gap 时，优先检查上游感知、其次规划、最后底层控制传输。这是后续学习式或 LLM 动作选择的可测试 baseline。
 
-## CARLA boundary
+## CARLA 边界
 
-`CarlaADSLogAdapter` now accepts a compact exported ADSLogRecord (`timestamp_s`, topic, payload summary, raw reference). It has no CARLA Python/runtime dependency. The next integration step is a CARLA recorder that emits this contract from a real closed-loop run; only then will CARLA be described as an executed backend.
+`CarlaADSLogAdapter` 已支持紧凑导出的 ADSLogRecord（`timestamp_s`、topic、payload summary、raw reference），但不依赖 CARLA Python/runtime。下一步是让 CARLA recorder 从真实闭环运行中导出该契约；在此之前，项目不会将 CARLA 表述为已经执行的后端。
 
-nuScenes and nuPlan adapters produce `AuxiliaryEvidenceBundle` records with `same_route_as_primary=false`. They can support adapter capability studies and route a perception/planning investigation, but Evidence Auditor records a source-boundary warning and blocks any claim that they completed the primary route's causal chain.
+nuScenes 与 nuPlan adapter 会产出 `AuxiliaryEvidenceBundle`，并固定写入 `same_route_as_primary=false`。它们可用于 adapter 能力研究和感知/规划调查路由；Evidence Auditor 会记录来源边界警告，阻止任何“它们补全了主路线因果链”的说法。
