@@ -276,6 +276,7 @@ conda run -n Zhijia pytest -q
 - [Agent 逻辑架构](docs/agent_logic_architecture.md)
 - [设计说明](docs/design.md)
 - [主动因果工作流](docs/active_causal_workflow.md)
+- [审稿结论与算法改进计划](docs/review_and_algorithm_plan.md)
 - [数据来源](docs/data_sources.md)
 - [限制](docs/limitations.md)
 - [旧版重校准说明](docs/legacy_recalibration.md)

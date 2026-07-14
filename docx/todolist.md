@@ -34,3 +34,22 @@
 - [x] 增加歧义场景，验证一次干预可区分竞争假设。
 - [x] 输出 decision-board artifact，并记录下一步 CARLA runtime 集成边界。
 - [x] 运行测试/demo、提交并推送。
+
+## 审稿风险驱动的算法改进（下一阶段）
+
+> 这一阶段优先验证“方法是否成立”，不以增加 Agent 数量或前端展示为目标。详见 [`docs/review_and_algorithm_plan.md`](../docs/review_and_algorithm_plan.md)。
+
+- [ ] 将 `validated_root_cause` 重命名并降级为 `counterfactually_supported_injected_fault_location`；只有多节点下游预测同时兑现时，才允许更强的机制性表述。
+- [ ] 把当前手工固定的 `expected_information_gain` 改为可追溯的 `diagnostic_priority_score`；完成竞争假设的条件概率建模后，再恢复严格的信息增益定义。
+- [ ] 拆分“原生 openpilot 依赖图”和 `AuxiliaryEvidenceBundle`；将 `perceptionEvidence` 明确为 `zgAux.*` 辅助 topic，避免混入原生消息链路。
+- [ ] 增加四类竞争假设：传播、独立双故障、共同原因、可观测性不足，并让每类假设给出可区分的预测。
+- [ ] 让 Case Manager 与专业 Agent 基于证据预算和不确定性动态选择/跳过工具；为不同案例记录不同 trace，并加回归测试防止退化成固定 DAG。
+- [ ] 将 Counterfactual Executor、Validation Tool、Evidence Auditor、Report Renderer 从“凑数量 Agent”降为受调用的基础设施；保留真正有分支与局部策略的调查 Agent。
+- [ ] 实现 paired/sham/alternative repair 对照，并以目标链路与下游恢复共同验证注入故障位置，避免循环证明。
+- [ ] 为 CAN 增加可选、车型绑定的 DBC profile；没有 profile 时固定输出为通信健康诊断，不声称车辆信号语义根因。
+- [ ] 建立可控故障矩阵、固定 pipeline/规则基线与消融实验，报告定位、拒答、校准、证据完整性、工具成本等指标。
+
+## 展示层（算法验证后再做）
+
+- [ ] 实现零依赖本地诊断工作台：加载 `diagnosis.json`、`evidence.jsonl` 与 `agent_trace.json`，直观展示消息缺口、假设—干预—验证闭环和结论边界。
+- [ ] 使用一个已验证的 synthetic `sendcan` gap artifact 作为静态 demo；页面不得上传日志、不得读取 API Key、不得将 synthetic 结果表述为真实车辆结论。
