@@ -24,4 +24,4 @@ Status date: 2026-07-14
 - [x] Add active routing: formulate hypothesis → choose highest-value feasible check/intervention → observe result → update confidence/stop.
 - [x] Extend audit/report artifacts with hypothesis graph, decision rationale, intervention results, and source-boundary checks.
 - [x] Add tests for successful synthetic validation, real-case non-intervention, and cross-dataset evidence isolation.
-- [ ] Commit and push the active extension.
+- [x] Commit and push the active extension.
